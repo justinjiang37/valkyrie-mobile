@@ -45,6 +45,13 @@ export default function AlertItem({ alert, onAcknowledge, onResolve }: AlertItem
   const sev = severityColors[alert.severity];
   const stat = statusColors[alert.status];
 
+  const formatTimestamp = (ts: string) => {
+    const d = new Date(ts);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+      " at " +
+      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  };
+
   const handleAcknowledge = () => {
     if (!showNoteInput) {
       setShowNoteInput(true);
@@ -58,12 +65,17 @@ export default function AlertItem({ alert, onAcknowledge, onResolve }: AlertItem
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <View
-          style={[
-            styles.dot,
-            { backgroundColor: alert.severity === "critical" ? Colors.critical : Colors.watch },
-          ]}
-        />
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{horseName.charAt(0)}</Text>
+          </View>
+          <View
+            style={[
+              styles.avatarDot,
+              { backgroundColor: alert.severity === "critical" ? Colors.critical : Colors.watch },
+            ]}
+          />
+        </View>
         <View style={styles.content}>
           <View style={styles.badges}>
             <Text style={styles.horseName}>{horseName}</Text>
@@ -73,8 +85,10 @@ export default function AlertItem({ alert, onAcknowledge, onResolve }: AlertItem
             <View style={[styles.badge, { backgroundColor: stat.bg }]}>
               <Text style={[styles.badgeText, { color: stat.text }]}>{alert.status}</Text>
             </View>
-            <Text style={styles.time}>{formatRelativeTime(alert.timestamp)}</Text>
           </View>
+          <Text style={styles.timestamp}>
+            {formatTimestamp(alert.timestamp)} ({formatRelativeTime(alert.timestamp)})
+          </Text>
 
           <Text style={styles.message}>{alert.message}</Text>
 
@@ -113,7 +127,7 @@ export default function AlertItem({ alert, onAcknowledge, onResolve }: AlertItem
           <View style={styles.actions}>
             {alert.status === "new" && !showNoteInput && (
               <TouchableOpacity onPress={handleAcknowledge} style={styles.ackBtn}>
-                <Text style={styles.ackBtnText}>Acknowledge</Text>
+                <Text style={styles.ackBtnText}>Add a Note</Text>
               </TouchableOpacity>
             )}
             {alert.status === "acknowledged" && (
@@ -138,13 +152,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   row: { flexDirection: "row", columnGap: 12 },
-  dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  avatarWrap: { position: "relative" as const },
+  avatar: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.border, alignItems: "center" as const, justifyContent: "center" as const,
+  },
+  avatarText: { fontSize: 16, fontWeight: "700", color: Colors.accent },
+  avatarDot: {
+    position: "absolute" as const, bottom: -1, right: -1,
+    width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: Colors.surface,
+  },
   content: { flex: 1 },
-  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", rowGap: 6, columnGap: 6, marginBottom: 6 },
+  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", rowGap: 6, columnGap: 6, marginBottom: 2 },
   horseName: { fontSize: 14, fontWeight: "700", color: Colors.textPrimary },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "600", textTransform: "capitalize" },
-  time: { fontSize: 12, color: Colors.textTertiary },
+  timestamp: { fontSize: 12, color: Colors.textTertiary, marginBottom: 6 },
   message: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, lineHeight: 20 },
   noteBox: { backgroundColor: Colors.background, borderRadius: 8, padding: 10, marginBottom: 8 },
   noteText: { fontSize: 12, color: Colors.textSecondary },
@@ -154,13 +177,13 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.surface, color: Colors.textPrimary,
   },
-  submitBtn: { backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: "center" },
+  submitBtn: { backgroundColor: Colors.cta, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: "center" },
   submitBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   cancelBtn: { backgroundColor: "#e7e1d9", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: "center" },
   cancelBtnText: { color: Colors.textPrimary, fontSize: 13, fontWeight: "600" },
   actions: { flexDirection: "row", columnGap: 8 },
-  ackBtn: { backgroundColor: Colors.accentLight, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  ackBtnText: { color: Colors.accent, fontSize: 13, fontWeight: "600" },
+  ackBtn: { backgroundColor: Colors.ctaLight, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  ackBtnText: { color: Colors.cta, fontSize: 13, fontWeight: "600" },
   resolveBtn: { backgroundColor: "#dcfce7", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   resolveBtnText: { color: "#15803d", fontSize: 13, fontWeight: "600" },
 });

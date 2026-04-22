@@ -144,6 +144,33 @@ export default function StallDetailScreen() {
         <ScoreBar label="Activity" value={score.activity} />
       </View>
 
+      {/* Annotations — prioritized above timeline */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>
+          Behavioral Annotations{" "}
+          <Text style={styles.annotationCount}>({stallAnnotations.length})</Text>
+        </Text>
+        {stallAnnotations.length > 0 ? (
+          stallAnnotations.map((ann) => {
+            const sev = sevStyle[ann.severity] || sevStyle.info;
+            return (
+              <View key={ann.id} style={styles.annotation}>
+                <View style={styles.annHeader}>
+                  <Text style={styles.annType}>{ann.type}</Text>
+                  <View style={[styles.annBadge, { backgroundColor: sev.bg }]}>
+                    <Text style={[styles.annBadgeText, { color: sev.text }]}>{ann.severity}</Text>
+                  </View>
+                  <Text style={styles.annTime}>{formatRelativeTime(ann.timestamp)}</Text>
+                </View>
+                <Text style={styles.annMessage}>{ann.message}</Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.emptyText}>No annotations recorded.</Text>
+        )}
+      </View>
+
       {/* Timeline chart */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>48-Hour Timeline</Text>
@@ -179,33 +206,6 @@ export default function StallDetailScreen() {
           <LegendItem color={Colors.atRisk} label="At Risk (60-79)" />
           <LegendItem color={Colors.critical} label="Critical (80-100)" />
         </View>
-      </View>
-
-      {/* Annotations */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>
-          Behavioral Annotations{" "}
-          <Text style={styles.annotationCount}>({stallAnnotations.length})</Text>
-        </Text>
-        {stallAnnotations.length > 0 ? (
-          stallAnnotations.map((ann) => {
-            const sev = sevStyle[ann.severity] || sevStyle.info;
-            return (
-              <View key={ann.id} style={styles.annotation}>
-                <View style={styles.annHeader}>
-                  <Text style={styles.annType}>{ann.type}</Text>
-                  <View style={[styles.annBadge, { backgroundColor: sev.bg }]}>
-                    <Text style={[styles.annBadgeText, { color: sev.text }]}>{ann.severity}</Text>
-                  </View>
-                  <Text style={styles.annTime}>{formatRelativeTime(ann.timestamp)}</Text>
-                </View>
-                <Text style={styles.annMessage}>{ann.message}</Text>
-              </View>
-            );
-          })
-        ) : (
-          <Text style={styles.emptyText}>No annotations recorded.</Text>
-        )}
       </View>
 
       <View style={{ height: 40 }} />

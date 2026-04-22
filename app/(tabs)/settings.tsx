@@ -101,7 +101,7 @@ export default function SettingsScreen() {
             <Switch
               value={form.alertNotifications}
               onValueChange={(v) => handleChange("alertNotifications", v)}
-              trackColor={{ false: "#d4cbbe", true: Colors.accent }}
+              trackColor={{ false: "#d4cbbe", true: Colors.cta }}
               thumbColor="#fff"
             />
           </View>
@@ -114,7 +114,7 @@ export default function SettingsScreen() {
               value={form.alertSound}
               onValueChange={() => {}}
               disabled
-              trackColor={{ false: "#d4cbbe", true: Colors.accent }}
+              trackColor={{ false: "#d4cbbe", true: Colors.cta }}
               thumbColor="#fff"
             />
           </View>
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 14, fontWeight: "600", color: Colors.textPrimary },
   toggleDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   saveBtn: {
-    backgroundColor: Colors.accent, borderRadius: 12,
+    backgroundColor: Colors.cta, borderRadius: 12,
     paddingVertical: 16, alignItems: "center",
   },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
