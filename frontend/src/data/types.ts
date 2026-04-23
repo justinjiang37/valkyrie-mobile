@@ -74,6 +74,10 @@ export function getStatusColor(status: HealthScore["status"]): string {
   }
 }
 
+export function toFiveScale(overall: number): number {
+  return Math.max(1, Math.min(5, Math.floor(overall / 20) + 1));
+}
+
 export function getStatusLabel(status: HealthScore["status"]): string {
   switch (status) {
     case "healthy": return "Healthy";

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { getStatus, getStatusColor, getStatusLabel } from "../data/types";
+import { getStatus, getStatusColor, toFiveScale } from "../data/types";
 
 interface ScoreBadgeProps {
   score: number;
@@ -8,68 +8,47 @@ interface ScoreBadgeProps {
 }
 
 export default function ScoreBadge({ score, size = "sm" }: ScoreBadgeProps) {
-  const status = getStatus(score);
-  const bg = getStatusColor(status);
-  const label = getStatusLabel(status);
+  const bg = getStatusColor(getStatus(score));
+  const text = `${toFiveScale(score)}/5`;
 
   if (size === "lg") {
     return (
       <View style={[styles.badgeLg, { backgroundColor: bg }]}>
-        <Text style={styles.scoreLg}>{score}</Text>
-        <Text style={styles.labelLg}>{label}</Text>
+        <Text style={styles.scoreLg}>{text}</Text>
       </View>
     );
   }
 
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={styles.score}>{score}</Text>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.score}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
-    flexDirection: "row",
     alignItems: "center",
-    columnGap: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
   },
   score: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     lineHeight: 16,
   },
-  label: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-    lineHeight: 14,
-  },
   badgeLg: {
-    flexDirection: "row",
     alignItems: "center",
-    columnGap: 6,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 999,
   },
   scoreLg: {
     color: "#fff",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
-    lineHeight: 26,
-  },
-  labelLg: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    lineHeight: 15,
+    lineHeight: 28,
   },
 });

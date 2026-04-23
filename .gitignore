@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# large media files
+*.mov
+*.mp4
+*.avi

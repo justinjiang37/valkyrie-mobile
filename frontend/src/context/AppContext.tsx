@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { HealthScore, Alert, FarmSettings, getStatus } from "../data/types";
 import { initialScores, initialAlerts, defaultSettings, horses, stalls } from "../data/mock";
 
+const API_BASE = "http://localhost:8000";
+const BELLA_STALL_ID = "s2";
+
 export interface Toast {
   id: string;
   horseName: string;
@@ -63,6 +66,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setScores(prev => {
         const next = { ...prev };
         for (const stallId of Object.keys(next)) {
+          if (stallId === BELLA_STALL_ID) continue;
           const old = next[stallId];
           const prevOverall = old.overall;
 
@@ -129,6 +133,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return () => clearInterval(interval);
   }, [settings.alertNotifications, settings.paranoiaLevel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let poll: ReturnType<typeof setInterval> | null = null;
+
+    const applyResult = (risk: number) => {
+      const overall = (risk - 1) * 20 + 10;
+      setScores(prev => ({
+        ...prev,
+        [BELLA_STALL_ID]: {
+          ...prev[BELLA_STALL_ID],
+          overall,
+          status: getStatus(overall),
+          timestamp: new Date().toISOString(),
+        },
+      }));
+    };
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/horses/bella/status`);
+        if (!res.ok) return;
+        const job = await res.json();
+        const risk = job?.results?.illness_risk_score;
+        if (typeof risk === "number") applyResult(risk);
+      } catch {
+        // backend unreachable — keep last known value
+      }
+    };
+
+    (async () => {
+      try {
+        await fetch(`${API_BASE}/api/horses/bella/analyze`, { method: "POST" });
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+      poll = setInterval(pollStatus, 5000);
+      pollStatus();
+    })();
+
+    return () => {
+      cancelled = true;
+      if (poll) clearInterval(poll);
+    };
+  }, []);
 
   return (
     <AppContext.Provider value={{
