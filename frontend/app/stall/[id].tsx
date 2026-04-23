@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ScrollView, Text, View, TouchableOpacity, StyleSheet, Dimensions, Linking,
 } from "react-native";
@@ -7,7 +7,8 @@ import { Video, ResizeMode } from "expo-av";
 import { LineChart } from "react-native-chart-kit";
 import Svg, { Path } from "react-native-svg";
 import { useApp } from "../../src/context/AppContext";
-import { stalls, horses, annotations, timelines } from "../../src/data/mock";
+import { annotations } from "../../src/data/mock";
+import { supabase } from "../../src/lib/supabase";
 import { StatusTag } from "../../src/components/StatusTag";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
@@ -30,15 +31,31 @@ function formatRelativeTime(timestamp: string): string {
 export default function StallDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { scores, settings, markStallChecked, checkedStalls, alerts } = useApp();
-  const [justChecked, setJustChecked] = useState(false);
+  const { scores, settings, alerts, horses, stalls, resolveAlert } = useApp();
 
   const stall = stalls.find((s) => s.id === id);
   const horse = horses.find((h) => h.stallId === id);
   const score = scores[id!];
   const stallAnnotations = annotations[id!] || [];
-  const timeline = timelines[id!] || [];
+  const [history, setHistory] = useState<{ timestamp: string; overall: number }[]>([]);
   const isOffline = stall?.cameraStatus === "offline";
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("health_scores")
+        .select("timestamp, overall")
+        .eq("stall_id", id)
+        .order("timestamp", { ascending: true })
+        .limit(48);
+      if (!cancelled && data) setHistory(data as { timestamp: string; overall: number }[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, score?.timestamp]);
   const stallIndex = stalls.findIndex((s) => s.id === id);
   const videoOffset = stallIndex * 3.7 + stallIndex * 1.3;
 
@@ -55,21 +72,24 @@ export default function StallDetailScreen() {
     );
   }
 
-  const handleMarkChecked = () => {
-    markStallChecked(id!);
-    setJustChecked(true);
-    setTimeout(() => setJustChecked(false), 3000);
-  };
-
-  const checkedAt = checkedStalls[id!];
-
-  // Prepare chart data - sample every 4th point for readability
-  const chartLabels = timeline.filter((_, i) => i % 8 === 0).map((_, i) => `${48 - i * 8}h`);
-  const chartValues = timeline;
+  // Build a 48-point hourly timeline. Real health_score rows fill their bucket;
+  // hours with no data default to 10 (1/5, no issues).
+  const chartValues = useMemo(() => {
+    const now = Date.now();
+    return Array.from({ length: 48 }, (_, i) => {
+      const bucketStart = now - (47 - i + 1) * 3600000;
+      const bucketEnd = now - (47 - i) * 3600000;
+      const row = history.find((r) => {
+        const t = new Date(r.timestamp).getTime();
+        return t >= bucketStart && t < bucketEnd;
+      });
+      return row ? Math.round((row.overall - 10) / 20 + 1) : 1;
+    });
+  }, [history]);
+  const chartLabels = ["48h", "40h", "32h", "24h", "16h", "8h", "now"];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-<<<<<<< Updated upstream
       {/* Back navigation */}
       <TouchableOpacity
         style={styles.backButton}
@@ -83,28 +103,6 @@ export default function StallDetailScreen() {
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
-=======
-      {/* Video */}
-      <View style={styles.videoContainer}>
-        {isOffline ? (
-          <View style={styles.offlinePlaceholder}>
-            <Feather name="video-off" size={40} color={Colors.textTertiary} />
-            <Text style={styles.offlineText}>Camera Offline</Text>
-          </View>
-        ) : (
-          <Video
-            source={
-              horse.name === "Bella"
-                ? require("../../assets/horse-rolling17.mov")
-                : require("../../assets/sample-stall.mp4")
-            }
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            positionMillis={horse.name === "Bella" ? 0 : videoOffset * 1000}
->>>>>>> Stashed changes
           />
         </Svg>
       </TouchableOpacity>
@@ -122,7 +120,7 @@ export default function StallDetailScreen() {
             </Text>
           </View>
           <View style={styles.alertActions}>
-            <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8} onPress={() => resolveAlert(stallAlert.id)}>
               <Text style={styles.secondaryBtnText}>Mark as Resolved</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -143,13 +141,13 @@ export default function StallDetailScreen() {
 
         {/* Video */}
         <View style={styles.videoContainer}>
-          {isOffline ? (
+          {isOffline || !horse.videoUrl ? (
             <View style={styles.offlinePlaceholder}>
               <Feather name="video-off" size={40} color="rgba(255,255,255,0.07)" />
             </View>
           ) : (
             <Video
-              source={require("../../assets/sample-stall.mp4")}
+              source={{ uri: horse.videoUrl }}
               style={styles.video}
               resizeMode={ResizeMode.COVER}
               shouldPlay
@@ -158,7 +156,7 @@ export default function StallDetailScreen() {
               positionMillis={videoOffset * 1000}
             />
           )}
-          {!isOffline && (
+          {!isOffline && horse.videoUrl && (
             <View style={styles.liveBadge}>
               <View style={styles.liveDot} />
               <Text style={styles.liveText}>LIVE</Text>
@@ -194,9 +192,9 @@ export default function StallDetailScreen() {
             }}
             width={screenWidth - 72}
             height={170}
-            yAxisSuffix=""
+            yAxisSuffix="/5"
             yAxisInterval={1}
-            fromZero
+            fromZero={false}
             chartConfig={{
               backgroundColor: Colors.white,
               backgroundGradientFrom: Colors.white,

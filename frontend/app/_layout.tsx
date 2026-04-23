@@ -34,10 +34,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!isAuthenticated && !inAuthGroup) {
-      // User is not signed in and trying to access protected route
       router.replace("/(auth)/login");
     } else if (isAuthenticated && inAuthGroup) {
-      // User is signed in but on auth screens
       router.replace("/(tabs)");
     }
   }, [isAuthenticated, isLoading, segments]);
