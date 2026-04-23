@@ -6,6 +6,7 @@ import threading
 from typing import Any
 
 from models import JobStatus
+from supabase_client import write_health_score
 
 _jobs: dict[str, dict[str, Any]] = {}
 _latest_by_horse: dict[str, str] = {}
@@ -49,10 +50,14 @@ def set_partial_result(job_id: str, results: dict[str, Any]) -> None:
 
 
 def set_done(job_id: str, results: dict[str, Any]) -> None:
+    horse: str | None = None
     with _lock:
         if job_id in _jobs:
             _jobs[job_id]["status"] = JobStatus.done.value
             _jobs[job_id]["results"] = results
+            horse = _jobs[job_id].get("horse")
+    if horse:
+        write_health_score(horse, results)
 
 
 def set_error(job_id: str, error: str) -> None:

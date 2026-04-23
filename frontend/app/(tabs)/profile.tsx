@@ -4,14 +4,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useApp } from "../../src/context/AppContext";
 import { useAuth } from "../../src/context/AuthContext";
-import { horses, stalls } from "../../src/data/mock";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
 import { Feather } from "@expo/vector-icons";
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { scores, settings } = useApp();
+  const { scores, settings, horses, stalls } = useApp();
   const { user, logout, isLoading } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 

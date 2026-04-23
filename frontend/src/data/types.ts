@@ -5,6 +5,7 @@ export interface Horse {
   age: number;
   stallId: string;
   imageUrl: string;
+  videoUrl?: string | null;
 }
 
 export interface Stall {

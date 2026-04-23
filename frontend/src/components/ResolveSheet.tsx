@@ -5,7 +5,7 @@ import { StatusTag } from './StatusTag';
 import { Colors } from '../constants/theme';
 import { type } from '../constants/typography';
 import { Alert } from '../data/types';
-import { horses } from '../data/mock';
+import { useApp } from '../context/AppContext';
 
 interface ResolveSheetProps {
   open: boolean;
@@ -16,6 +16,7 @@ interface ResolveSheetProps {
 
 export function ResolveSheet({ open, onClose, alert, onResolve }: ResolveSheetProps) {
   const [note, setNote] = useState('');
+  const { horses } = useApp();
 
   if (!alert) return null;
 

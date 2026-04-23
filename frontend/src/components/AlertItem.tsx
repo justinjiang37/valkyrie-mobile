@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Alert } from "../data/types";
-import { horses } from "../data/mock";
+import { useApp } from "../context/AppContext";
 import { Colors } from "../constants/theme";
 import { type } from "../constants/typography";
 
@@ -37,6 +37,7 @@ function DotsIcon() {
 }
 
 export default function AlertItem({ alert, onPress }: AlertItemProps) {
+  const { horses } = useApp();
   const horse = horses.find((h) => h.id === alert.horseId);
   const horseName = horse?.name ?? "Unknown";
   const timeAgo = formatRelativeTime(alert.timestamp);

@@ -4,7 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { Line } from "react-native-svg";
 import { useApp } from "../../src/context/AppContext";
-import { horses, stalls } from "../../src/data/mock";
 import { StatusTag } from "../../src/components/StatusTag";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
@@ -93,7 +92,7 @@ function SectionDivider() {
 }
 
 export default function AlertsScreen() {
-  const { alerts } = useApp();
+  const { alerts, horses, stalls } = useApp();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("active");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());

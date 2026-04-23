@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, Link } from 'expo-router';
+import { Link } from 'expo-router';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/theme';
@@ -31,7 +31,6 @@ function SparkIcon() {
 }
 
 export default function LoginScreen() {
-  const router = useRouter();
   const { login, isLoading } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -54,7 +53,6 @@ export default function LoginScreen() {
 
     try {
       await login(email.trim(), password);
-      router.replace('/(tabs)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }

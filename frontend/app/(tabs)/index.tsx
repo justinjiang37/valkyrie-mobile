@@ -4,7 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { Path } from "react-native-svg";
 import { useApp } from "../../src/context/AppContext";
-import { stalls, horses } from "../../src/data/mock";
 import StallCard from "../../src/components/StallCard";
 import AlertItem from "../../src/components/AlertItem";
 import { Colors } from "../../src/constants/theme";
@@ -20,7 +19,7 @@ function SparkLogo() {
 }
 
 export default function FeedsScreen() {
-  const { scores, alerts } = useApp();
+  const { scores, alerts, horses, stalls } = useApp();
   const router = useRouter();
 
   // Get the first critical or warning alert

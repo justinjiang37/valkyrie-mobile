@@ -8,21 +8,23 @@ import { type } from '../constants/typography';
 
 interface CameraFeedCardProps {
   stallLabel: string;
+  videoUrl?: string | null;
   videoOffset?: number;
   isOffline?: boolean;
 }
 
-export function CameraFeedCard({ stallLabel, videoOffset = 0, isOffline = false }: CameraFeedCardProps) {
+export function CameraFeedCard({ stallLabel, videoUrl, videoOffset = 0, isOffline = false }: CameraFeedCardProps) {
+  const hasVideo = !isOffline && !!videoUrl;
   return (
     <View style={styles.container}>
-      {isOffline ? (
+      {!hasVideo ? (
         <View style={styles.offlineContent}>
           <Feather name="video-off" size={36} color="rgba(255,255,255,0.07)" />
         </View>
       ) : (
         <>
           <Video
-            source={require('../../assets/sample-stall.mp4')}
+            source={{ uri: videoUrl! }}
             style={styles.video}
             resizeMode={ResizeMode.COVER}
             shouldPlay
@@ -38,7 +40,7 @@ export function CameraFeedCard({ stallLabel, videoOffset = 0, isOffline = false 
       )}
 
       {/* LIVE badge */}
-      {!isOffline && (
+      {hasVideo && (
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
           <Text style={styles.liveText}>LIVE</Text>
