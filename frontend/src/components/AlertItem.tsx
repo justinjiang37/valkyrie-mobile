@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet } from "react-native";
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Alert } from "../data/types";
 import { horses } from "../data/mock";
 import { Colors } from "../constants/theme";
+import { type } from "../constants/typography";
 
 function formatRelativeTime(timestamp: string): string {
   const now = Date.now();
@@ -13,7 +14,7 @@ function formatRelativeTime(timestamp: string): string {
   const diffHr = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
   if (diffSec < 60) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return `${diffMin} min ago`;
   if (diffHr < 24) return `${diffHr}h ago`;
   if (diffDay < 7) return `${diffDay}d ago`;
   return new Date(timestamp).toLocaleDateString();
@@ -21,169 +22,102 @@ function formatRelativeTime(timestamp: string): string {
 
 interface AlertItemProps {
   alert: Alert;
-  onAcknowledge: (id: string, note?: string) => void;
-  onResolve: (id: string) => void;
+  onPress?: () => void;
 }
 
-const severityColors = {
-  warning: { bg: "#fef9c3", text: "#a16207" },
-  critical: { bg: "#fee2e2", text: "#b91c1c" },
-};
+// Dot icon component matching web design
+function DotsIcon() {
+  return (
+    <View style={styles.dotsContainer}>
+      <View style={styles.dot} />
+      <View style={styles.dot} />
+      <View style={styles.dot} />
+    </View>
+  );
+}
 
-const statusColors: Record<string, { bg: string; text: string }> = {
-  new: { bg: "#dbeafe", text: "#1d4ed8" },
-  acknowledged: { bg: "#fef3c7", text: "#b45309" },
-  resolved: { bg: "#dcfce7", text: "#15803d" },
-};
-
-export default function AlertItem({ alert, onAcknowledge, onResolve }: AlertItemProps) {
-  const [showNoteInput, setShowNoteInput] = useState(false);
-  const [note, setNote] = useState("");
-
+export default function AlertItem({ alert, onPress }: AlertItemProps) {
   const horse = horses.find((h) => h.id === alert.horseId);
   const horseName = horse?.name ?? "Unknown";
-  const sev = severityColors[alert.severity];
-  const stat = statusColors[alert.status];
-
-  const formatTimestamp = (ts: string) => {
-    const d = new Date(ts);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-      " at " +
-      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  };
-
-  const handleAcknowledge = () => {
-    if (!showNoteInput) {
-      setShowNoteInput(true);
-      return;
-    }
-    onAcknowledge(alert.id, note || undefined);
-    setShowNoteInput(false);
-    setNote("");
-  };
+  const timeAgo = formatRelativeTime(alert.timestamp);
 
   return (
-    <View style={styles.card}>
-      <View style={styles.row}>
-        <View style={styles.avatarWrap}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{horseName.charAt(0)}</Text>
-          </View>
-          <View
-            style={[
-              styles.avatarDot,
-              { backgroundColor: alert.severity === "critical" ? Colors.critical : Colors.watch },
-            ]}
-          />
-        </View>
-        <View style={styles.content}>
-          <View style={styles.badges}>
-            <Text style={styles.horseName}>{horseName}</Text>
-            <View style={[styles.badge, { backgroundColor: sev.bg }]}>
-              <Text style={[styles.badgeText, { color: sev.text }]}>{alert.severity}</Text>
-            </View>
-            <View style={[styles.badge, { backgroundColor: stat.bg }]}>
-              <Text style={[styles.badgeText, { color: stat.text }]}>{alert.status}</Text>
-            </View>
-          </View>
-          <Text style={styles.timestamp}>
-            {formatTimestamp(alert.timestamp)} ({formatRelativeTime(alert.timestamp)})
-          </Text>
-
-          <Text style={styles.message}>{alert.message}</Text>
-
-          {alert.note && (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteText}>
-                <Text style={{ fontWeight: "600" }}>Note: </Text>
-                {alert.note}
-              </Text>
-            </View>
-          )}
-
-          {showNoteInput && (
-            <View style={styles.noteInputRow}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder="Add a note (optional)..."
-                placeholderTextColor={Colors.textTertiary}
-                style={styles.noteInput}
-                onSubmitEditing={handleAcknowledge}
-                autoFocus
-              />
-              <TouchableOpacity onPress={handleAcknowledge} style={styles.submitBtn}>
-                <Text style={styles.submitBtnText}>Submit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => { setShowNoteInput(false); setNote(""); }}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.actions}>
-            {alert.status === "new" && !showNoteInput && (
-              <TouchableOpacity onPress={handleAcknowledge} style={styles.ackBtn}>
-                <Text style={styles.ackBtnText}>Add a Note</Text>
-              </TouchableOpacity>
-            )}
-            {alert.status === "acknowledged" && (
-              <TouchableOpacity onPress={() => onResolve(alert.id)} style={styles.resolveBtn}>
-                <Text style={styles.resolveBtnText}>Resolve</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.94}
+      onPress={onPress}
+    >
+      {/* Header row */}
+      <View style={styles.header}>
+        <Text style={styles.headerLabel}>ALERT</Text>
+        <DotsIcon />
       </View>
-    </View>
+
+      {/* Inner white card */}
+      <View style={styles.innerCard}>
+        <View style={styles.innerHeader}>
+          <Text style={styles.horseName}>{horseName}</Text>
+          <Text style={styles.timeAgo}>{timeAgo}</Text>
+        </View>
+        <Text style={styles.message} numberOfLines={2}>
+          {alert.message}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 16,
-    marginBottom: 10,
+    backgroundColor: Colors.cardBg,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 12,
   },
-  row: { flexDirection: "row", columnGap: 12 },
-  avatarWrap: { position: "relative" as const },
-  avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.border, alignItems: "center" as const, justifyContent: "center" as const,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  avatarText: { fontSize: 16, fontWeight: "700", color: Colors.accent },
-  avatarDot: {
-    position: "absolute" as const, bottom: -1, right: -1,
-    width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: Colors.surface,
+  headerLabel: {
+    ...type.caption1Medium,
+    color: Colors.textTertiary,
   },
-  content: { flex: 1 },
-  badges: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", rowGap: 6, columnGap: 6, marginBottom: 2 },
-  horseName: { fontSize: 14, fontWeight: "700", color: Colors.textPrimary },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-  badgeText: { fontSize: 11, fontWeight: "600", textTransform: "capitalize" },
-  timestamp: { fontSize: 12, color: Colors.textTertiary, marginBottom: 6 },
-  message: { fontSize: 14, color: Colors.textSecondary, marginBottom: 8, lineHeight: 20 },
-  noteBox: { backgroundColor: Colors.background, borderRadius: 8, padding: 10, marginBottom: 8 },
-  noteText: { fontSize: 12, color: Colors.textSecondary },
-  noteInputRow: { flexDirection: "row", columnGap: 8, marginBottom: 8 },
-  noteInput: {
-    flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface, color: Colors.textPrimary,
+  dotsContainer: {
+    flexDirection: "row",
+    gap: 6,
   },
-  submitBtn: { backgroundColor: Colors.cta, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: "center" },
-  submitBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
-  cancelBtn: { backgroundColor: "#e7e1d9", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, justifyContent: "center" },
-  cancelBtnText: { color: Colors.textPrimary, fontSize: 13, fontWeight: "600" },
-  actions: { flexDirection: "row", columnGap: 8 },
-  ackBtn: { backgroundColor: Colors.ctaLight, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  ackBtnText: { color: Colors.cta, fontSize: 13, fontWeight: "600" },
-  resolveBtn: { backgroundColor: "#dcfce7", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  resolveBtnText: { color: "#15803d", fontSize: 13, fontWeight: "600" },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.textQuaternary,
+  },
+  innerCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 7,
+    paddingHorizontal: 19,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  innerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  horseName: {
+    ...type.headline,
+    color: Colors.textPrimary,
+  },
+  timeAgo: {
+    ...type.caption1,
+    color: Colors.textFaint,
+    flexShrink: 0,
+  },
+  message: {
+    ...type.callout,
+    color: Colors.textSecondary,
+  },
 });

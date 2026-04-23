@@ -15,10 +15,12 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.textTertiary,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
+          backgroundColor: Colors.white,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          paddingTop: 4,
+          paddingTop: 8,
+          paddingBottom: 28,
+          height: 84,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -29,8 +31,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Horses",
-          tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} />,
+          title: "Feeds",
+          tabBarIcon: ({ color, size }) => <Feather name="video" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -39,20 +41,7 @@ export default function TabLayout() {
           title: "Alerts",
           tabBarIcon: ({ color, size }) => <Feather name="bell" size={size} color={color} />,
           tabBarBadge: newAlertCount > 0 ? newAlertCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: Colors.critical, fontSize: 10 },
-        }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => <Feather name="settings" size={size} color={color} />,
+          tabBarBadgeStyle: { backgroundColor: Colors.critical.bg, fontSize: 10 },
         }}
       />
       <Tabs.Screen

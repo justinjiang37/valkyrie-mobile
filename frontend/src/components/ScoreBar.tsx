@@ -8,10 +8,10 @@ interface ScoreBarProps {
 }
 
 function getBarColor(v: number): string {
-  if (v >= 80) return Colors.critical;
-  if (v >= 60) return Colors.atRisk;
-  if (v >= 30) return Colors.watch;
-  return Colors.healthy;
+  if (v >= 80) return Colors.critical.bg;
+  if (v >= 60) return Colors.warning.bg;
+  if (v >= 30) return Colors.warning.bg;
+  return Colors.healthy.bg;
 }
 
 export default function ScoreBar({ label, value }: ScoreBarProps) {
