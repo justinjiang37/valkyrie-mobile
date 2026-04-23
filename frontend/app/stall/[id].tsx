@@ -69,6 +69,7 @@ export default function StallDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+<<<<<<< Updated upstream
       {/* Back navigation */}
       <TouchableOpacity
         style={styles.backButton}
@@ -82,6 +83,28 @@ export default function StallDetailScreen() {
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
+=======
+      {/* Video */}
+      <View style={styles.videoContainer}>
+        {isOffline ? (
+          <View style={styles.offlinePlaceholder}>
+            <Feather name="video-off" size={40} color={Colors.textTertiary} />
+            <Text style={styles.offlineText}>Camera Offline</Text>
+          </View>
+        ) : (
+          <Video
+            source={
+              horse.name === "Bella"
+                ? require("../../assets/horse-rolling17.mov")
+                : require("../../assets/sample-stall.mp4")
+            }
+            style={styles.video}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay
+            isLooping
+            isMuted
+            positionMillis={horse.name === "Bella" ? 0 : videoOffset * 1000}
+>>>>>>> Stashed changes
           />
         </Svg>
       </TouchableOpacity>
