@@ -5,7 +5,6 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
 import { LineChart } from "react-native-chart-kit";
-import Svg, { Path } from "react-native-svg";
 import { useApp } from "../../src/context/AppContext";
 import { annotations } from "../../src/data/mock";
 import { supabase } from "../../src/lib/supabase";
@@ -99,23 +98,6 @@ export default function StallDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Back navigation */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-      >
-        <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-          <Path
-            d="M15 18l-6-6 6-6"
-            stroke={Colors.textPrimary}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-      </TouchableOpacity>
-
       {/* Alert card (if there's an active alert) */}
       {stallAlert && (
         <View style={styles.alertCard}>
@@ -129,15 +111,15 @@ export default function StallDetailScreen() {
             </Text>
           </View>
           <View style={styles.alertActions}>
-            <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8} onPress={() => setResolveSheetOpen(true)}>
-              <Text style={styles.secondaryBtnText}>Mark as Resolved</Text>
+            <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8} onPress={() => resolveAlert(stallAlert.id)}>
+              <Text style={styles.secondaryBtnText}>Mark Resolved</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.primaryBtn}
               activeOpacity={0.8}
-              onPress={() => Linking.openURL(`tel:${settings.vetPhone.replace(/[^0-9+]/g, "")}`)}
+              onPress={() => Linking.openURL("tel:+16507136140")}
             >
-              <Text style={styles.primaryBtnText}>Call Vet</Text>
+              <Text style={styles.primaryBtnText}>Call Dr. Jun</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -184,9 +166,9 @@ export default function StallDetailScreen() {
         <TouchableOpacity
           style={styles.callVetFullBtn}
           activeOpacity={0.8}
-          onPress={() => Linking.openURL(`tel:${settings.vetPhone.replace(/[^0-9+]/g, "")}`)}
+          onPress={() => Linking.openURL("tel:+16507136140")}
         >
-          <Text style={styles.callVetFullText}>Call Vet</Text>
+          <Text style={styles.callVetFullText}>Call Dr. Jun</Text>
         </TouchableOpacity>
       </View>
 
@@ -273,13 +255,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 20 },
   notFound: { flex: 1, justifyContent: "center", alignItems: "center" },
   notFoundText: { ...type.body, color: Colors.textSecondary },
-
-  // Back button
-  backButton: {
-    paddingTop: 16,
-    paddingBottom: 12,
-    width: 44,
-  },
 
   // Alert card
   alertCard: {
