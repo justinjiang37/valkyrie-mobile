@@ -24,7 +24,7 @@ interface AppState {
   horses: Horse[];
   stalls: Stall[];
   acknowledgeAlert: (id: string, note?: string) => Promise<void>;
-  resolveAlert: (id: string) => Promise<void>;
+  resolveAlert: (id: string, note?: string) => Promise<void>;
   updateSettings: (settings: Partial<FarmSettings>) => Promise<void>;
   dismissToast: (id: string) => void;
   markStallChecked: (stallId: string) => void;
@@ -185,12 +185,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .eq("id", id);
   }, []);
 
-  const resolveAlert = useCallback(async (id: string) => {
+  const resolveAlert = useCallback(async (id: string, note?: string) => {
     const now = new Date().toISOString();
     setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "resolved", resolvedAt: now } : a))
+      prev.map((a) => (a.id === id ? { ...a, status: "resolved", resolvedAt: now, note: note ?? a.note } : a))
     );
-    await supabase.from("alerts").update({ status: "resolved", resolved_at: now }).eq("id", id);
+    await supabase
+      .from("alerts")
+      .update({ status: "resolved", resolved_at: now, ...(note !== undefined && { note }) })
+      .eq("id", id);
   }, []);
 
   const updateSettings = useCallback(

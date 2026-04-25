@@ -15,13 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import job_store
 from models import JobResponse, JobStatus
-from pipeline import run_pipeline
+from pipeline import cv_pipeline_enabled, run_pipeline
 
 REQUEUE_COOLDOWN_SECONDS = 2.0
 
 # When True, each finished job auto-queues the next cycle (live-feed behavior).
 # When False, `POST /analyze` runs exactly one pipeline pass and stops.
-LOOP_MODE = False
+LOOP_MODE = True
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,7 +31,10 @@ VIDEOS_DIR = Path(__file__).parent / "videos"
 # Horse registry: horse_id -> video file path.
 # Add a new entry + video file to enable analysis for another horse.
 HORSE_VIDEOS: dict[str, Path] = {
-    "bella": VIDEOS_DIR / "horse-rolling17.mov",
+    "bella":  VIDEOS_DIR / "horse-rolling17.mov",
+    "rocky":  VIDEOS_DIR / "horse-rolling17.mov",
+    "shadow": VIDEOS_DIR / "horse-rolling17.mov",
+    "maple":  VIDEOS_DIR / "horse-rolling17.mov",
 }
 
 
@@ -52,6 +55,23 @@ def _video_path_for(horse_id: str) -> Path:
 
 
 app = FastAPI(title="Valkyrie Local API", version="0.1.0")
+
+
+@app.on_event("startup")
+async def _autostart_all_horses() -> None:
+    """Kick off a continuous pipeline loop for every registered horse on boot."""
+    if not cv_pipeline_enabled():
+        logger.info("CV pipeline killswitch off; not autostarting horses")
+        return
+    for horse_id in HORSE_VIDEOS:
+        with _running_lock:
+            already = horse_id in _running_horses
+            if not already:
+                _running_horses.add(horse_id)
+        if not already:
+            _start_job(horse_id)
+            logger.info("Auto-started pipeline loop for %s", horse_id)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,7 +119,7 @@ def _run_and_requeue(horse_id: str, job_id: str, video_bytes: bytes) -> None:
     except Exception:
         logger.exception("Pipeline crashed for %s job %s", horse_id, job_id)
 
-    if not LOOP_MODE:
+    if not LOOP_MODE or not cv_pipeline_enabled():
         with _running_lock:
             _running_horses.discard(horse_id)
         return
