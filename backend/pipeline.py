@@ -23,9 +23,13 @@ from pathlib import Path
 import job_store
 from models import JobStatus
 
-from local_inference import run_batch_local
+from modal_client import run_batch_remote
 
 logger = logging.getLogger(__name__)
+
+
+def cv_pipeline_enabled() -> bool:
+    return os.environ.get("CV_PIPELINE_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 
 FRAME_FPS         = 0.5
 SCALE_HEIGHT      = 360  # matches TARGET_HEIGHT in modal_service.py / notebook
@@ -223,7 +227,7 @@ def _vlm_producer(
         for start in range(0, len(active_frames), VLM_MICRO_BATCH):
             chunk = active_frames[start : start + VLM_MICRO_BATCH]
             frame_bytes = _read_frame_bytes(chunk)
-            output = run_batch_local(frame_bytes)
+            output = run_batch_remote(frame_bytes)
             descs = output.get("descriptions", [])
             with lock:
                 shared_descs.extend(descs)
@@ -277,6 +281,16 @@ def run_pipeline(job_id: str, video_bytes: bytes) -> None:
     Entry point called by FastAPI BackgroundTasks.
     Runs the full pipeline and updates the job store.
     """
+    if not cv_pipeline_enabled():
+        logger.info("CV pipeline disabled by killswitch; skipping job %s", job_id)
+        job_store.set_done(job_id, {
+            "illness_risk_score": 1,
+            "detections": [],
+            "summary": "CV pipeline disabled.",
+            "raw_descriptions": [],
+        })
+        return
+
     logger.info("Pipeline started for job %s", job_id)
     job_store.set_status(job_id, JobStatus.processing)
 

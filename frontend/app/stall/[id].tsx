@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ScrollView, Text, View, TouchableOpacity, StyleSheet, Dimensions, Linking,
 } from "react-native";
@@ -12,6 +12,7 @@ import { StatusTag } from "../../src/components/StatusTag";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
 import { Feather } from "@expo/vector-icons";
+import { ResolveSheet } from "../../src/components/ResolveSheet";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -37,7 +38,15 @@ export default function StallDetailScreen() {
   const score = scores[id!];
   const stallAnnotations = annotations[id!] || [];
   const [history, setHistory] = useState<{ timestamp: string; overall: number }[]>([]);
+  const [resolveSheetOpen, setResolveSheetOpen] = useState(false);
   const isOffline = stall?.cameraStatus === "offline";
+
+  const handleResolve = useCallback(
+    (alertId: string, note: string) => {
+      resolveAlert(alertId, note || undefined);
+    },
+    [resolveAlert]
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -221,6 +230,13 @@ export default function StallDetailScreen() {
       </View>
 
       <View style={{ height: 40 }} />
+
+      <ResolveSheet
+        open={resolveSheetOpen}
+        onClose={() => setResolveSheetOpen(false)}
+        alert={stallAlert ?? null}
+        onResolve={handleResolve}
+      />
     </ScrollView>
   );
 }

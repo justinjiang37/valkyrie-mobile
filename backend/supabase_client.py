@@ -31,7 +31,10 @@ def _get_client():
 
 # Map horse_id in FastAPI → stall_id in Supabase.
 HORSE_TO_STALL = {
-    "bella": "s2",
+    "bella":  "s2",
+    "rocky":  "s1",
+    "shadow": "s3",
+    "maple":  "s4",
 }
 
 
