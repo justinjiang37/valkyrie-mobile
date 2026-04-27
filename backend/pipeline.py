@@ -3,10 +3,10 @@ Video processing pipeline for Valkyrie.
 
 Flow:
   1. Save video bytes to a temp file
-  2. Use ffmpeg to scale to 360p and extract frames at 3 FPS as PNGs
-  3. Split frame files into batches of 48
-  4. Send each batch to Modal (Qwen3-VL-2B sliding window inference)
-  5. Aggregate all batch descriptions via Gemini into detections + risk score
+  2. Use ffmpeg to scale to 360p and extract frames at 0.5 FPS as PNGs
+  3. Filter static frames via motion detection
+  4. Send each frame to Qwen3-VL (VLM) for a natural-language description
+  5. Aggregate descriptions via fast regex (default) or Qwen3.5-4B (LLM)
   6. Update job store with final results or error
 """
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -23,13 +24,17 @@ from pathlib import Path
 import job_store
 from models import JobStatus
 
-from modal_client import run_batch_remote
+if os.environ.get("USE_LOCAL", "false").lower() == "true":
+    from local_inference import run_batch_local, run_scoring_local
+else:
+    from modal_service import run_batch_local, run_scoring_local
 
 logger = logging.getLogger(__name__)
 
 
 def cv_pipeline_enabled() -> bool:
     return os.environ.get("CV_PIPELINE_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+
 
 FRAME_FPS         = 0.5
 SCALE_HEIGHT      = 360  # matches TARGET_HEIGHT in modal_service.py / notebook
@@ -40,6 +45,9 @@ VLM_MICRO_BATCH   = 1    # frames per VLM call; 1 = most stream-like
 SCORING_INTERVAL  = 30   # new descriptions between scoring passes = 60s of video at 0.5 FPS
 SCORER_POLL_SEC   = 1.0  # how often scorer checks for new work
 
+# Scoring backend toggle. Default = fast regex (live-stream friendly).
+# Set USE_LLM_SCORING=true in .env to use the Qwen3.5-4B LLM instead.
+USE_LLM_SCORING   = os.environ.get("USE_LLM_SCORING", "false").lower() == "true"
 
 
 def _extract_frames(video_path: str, frames_dir: str) -> list[Path]:
@@ -87,6 +95,10 @@ def _filter_static_frames(
     return active, active_set
 
 
+# ---------------------------------------------------------------------------
+# Regex-based scoring (fast path, default for live streams)
+# ---------------------------------------------------------------------------
+
 # 60 seconds of frames at 0.5 FPS
 _SCORING_WINDOW = 30
 # Head/leg condition must appear this many times in a 60s window to trigger 4/5
@@ -105,35 +117,72 @@ _RISK_SUMMARIES = {
     1: "Low: No significant colic indicators observed.",
 }
 
+_NEGATION_CUES = re.compile(
+    r"\b(not|no|never|without|isn'?t|aren'?t|doesn'?t|don'?t|"
+    r"no\s+signs?\s+of|no\s+indication\s+of)\b",
+    re.IGNORECASE,
+)
+
+_ROLLING_RE = re.compile(r'\b(rolling|thrashing)\b')
+_LYING_RE = re.compile(r'\b(lying|lies|lay|recumbent|on the ground|on its side)\b')
+_STANDING_RE = re.compile(r'\b(standing|upright|stands|stood)\b')
+_HEAD_BITE_RE = re.compile(
+    r'\b(biting|nipping|chewing)\b.{0,30}\b(flank|belly|abdomen|stomach|side)\b'
+)
+_HEAD_KICK_RE = re.compile(
+    r'\b(kicking|pawing)\b.{0,30}\b(belly|abdomen|stomach)\b'
+)
+_HEAD_TURN_RE = re.compile(
+    r'\bhead\b.{0,30}\b(turned|turning|looking|reaching|craning)\b'
+    r'.{0,30}\b(toward|towards|at)\b.{0,30}\b(flank|belly|abdomen|stomach)\b'
+)
+
+
+def _is_negated(text: str, match_start: int) -> bool:
+    """True if a negation cue precedes match_start within ~60 chars
+    without an intervening clause break."""
+    window = text[max(0, match_start - 60) : match_start]
+    last_break = max(window.rfind("."), window.rfind(";"))
+    if last_break != -1:
+        window = window[last_break + 1 :]
+    return bool(_NEGATION_CUES.search(window))
+
+
+def _has_unnegated_match(pattern: re.Pattern, text: str) -> bool:
+    return any(not _is_negated(text, m.start()) for m in pattern.finditer(text))
+
 
 def _parse_frame_result(desc: str) -> dict:
     """Parse a natural-language VLM description into boolean signals."""
-    import re
     d = desc.lower()
 
-    rolling = bool(re.search(r'\b(rolling|thrashing)\b', d))
-    lying   = bool(re.search(r'\b(lying|lies|lay|recumbent|on the ground|on its side)\b', d)) and not rolling
+    # Explicit "standing" overrides contradictory rolling/lying claims in the
+    # same description — a horse cannot be standing and rolling at once.
+    standing = _has_unnegated_match(_STANDING_RE, d)
+    rolling  = _has_unnegated_match(_ROLLING_RE, d) and not standing
+    lying    = (
+        _has_unnegated_match(_LYING_RE, d)
+        and not rolling
+        and not standing
+    )
 
-    head_near_abdomen = bool(re.search(
-        r'\b(biting|nipping|chewing).{0,30}\b(flank|belly|abdomen|stomach|side)\b', d
-    )) or bool(re.search(
-        r'\b(kicking|pawing).{0,30}\b(belly|abdomen|stomach)\b', d
-    )) or bool(re.search(
-        r'\bhead\b.{0,30}\b(turned|turning|looking|reaching|craning)\b.{0,30}\b(toward|towards|at)\b.{0,30}\b(flank|belly|abdomen|stomach)\b', d
-    ))
+    head_near_abdomen = (
+        _has_unnegated_match(_HEAD_BITE_RE, d)
+        or _has_unnegated_match(_HEAD_KICK_RE, d)
+        or _has_unnegated_match(_HEAD_TURN_RE, d)
+    )
 
     return {
         "lying":             lying,
-        "standing":          not lying and not rolling,
+        "standing":          standing or (not lying and not rolling),
         "rolling":           rolling,
         "head_near_abdomen": head_near_abdomen,
     }
 
 
-def _aggregate_results(batch_outputs: list[dict]) -> dict:
+def _aggregate_results(descriptions: list[str]) -> dict:
     """
-    Parse structured per-frame VLM outputs and apply priority-based
-    clinical scoring using a rolling 60-second window.
+    Regex-based clinical scoring over a description timeline.
 
     Priority (highest wins):
       5/5 — rolling detected in any window
@@ -142,19 +191,14 @@ def _aggregate_results(batch_outputs: list[dict]) -> dict:
       2/5 — horse has been lying down continuously for >= 1 hour
       1/5 — none of the above
     """
-    all_descriptions: list[str] = []
-    for output in batch_outputs:
-        all_descriptions.extend(output.get("descriptions", []))
-
-    if not all_descriptions:
+    if not descriptions:
         return {
             "illness_risk_score": 1,
             "detections": [],
             "summary": "No observations produced by the vision model.",
-            "raw_descriptions": [],
         }
 
-    frames = [_parse_frame_result(d) for d in all_descriptions]
+    frames = [_parse_frame_result(d) for d in descriptions]
 
     any_rolling = False
     max_head_leg_count = 0
@@ -211,8 +255,28 @@ def _aggregate_results(batch_outputs: list[dict]) -> dict:
         "illness_risk_score": risk,
         "detections":         detections,
         "summary":            _RISK_SUMMARIES[risk],
-        "raw_descriptions":   all_descriptions,
     }
+
+
+# ---------------------------------------------------------------------------
+# Scoring dispatcher — chooses backend based on USE_LLM_SCORING env toggle
+# ---------------------------------------------------------------------------
+
+def _score_descriptions(descriptions: list[str]) -> dict:
+    """Return a results dict (without raw_descriptions) for a description list.
+
+    Routes to the LLM (Qwen3.5-4B) if USE_LLM_SCORING=true, otherwise the
+    fast regex aggregator. The LLM is more accurate but ~seconds-per-call;
+    the regex path is microseconds and safe for live-stream use.
+    """
+    if USE_LLM_SCORING:
+        raw = run_scoring_local(descriptions)
+        return {
+            "illness_risk_score": raw.get("illness_risk_score", 1),
+            "detections":         raw.get("detections", []),
+            "summary":            raw.get("summary", ""),
+        }
+    return _aggregate_results(descriptions)
 
 
 def _vlm_producer(
@@ -227,7 +291,7 @@ def _vlm_producer(
         for start in range(0, len(active_frames), VLM_MICRO_BATCH):
             chunk = active_frames[start : start + VLM_MICRO_BATCH]
             frame_bytes = _read_frame_bytes(chunk)
-            output = run_batch_remote(frame_bytes)
+            output = run_batch_local(frame_bytes)
             descs = output.get("descriptions", [])
             with lock:
                 shared_descs.extend(descs)
@@ -259,7 +323,8 @@ def _scorer_consumer(
         if should_score:
             with lock:
                 snapshot = list(shared_descs)
-            results = _aggregate_results([{"descriptions": snapshot}])
+            results = _score_descriptions(snapshot)
+            results["raw_descriptions"] = snapshot
             try:
                 job_store.set_partial_result(job_id, results)
             except Exception:
@@ -358,7 +423,8 @@ def run_pipeline(job_id: str, video_bytes: bytes) -> None:
                     last_desc = next(active_iter)
                 full_descriptions.append(last_desc)
 
-            results = _aggregate_results([{"descriptions": full_descriptions}])
+            results = _score_descriptions(full_descriptions)
+            results["raw_descriptions"] = full_descriptions
             job_store.set_done(job_id, results)
             logger.info(
                 "Pipeline done for job %s — risk=%d/5, detections=%s",
