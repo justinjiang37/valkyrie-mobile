@@ -1,72 +1,83 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 import { type } from '../constants/typography';
 
 interface CameraFeedCardProps {
-  stallLabel: string;
   videoUrl?: string | null;
   videoOffset?: number;
   isOffline?: boolean;
 }
 
-export function CameraFeedCard({ stallLabel, videoUrl, videoOffset = 0, isOffline = false }: CameraFeedCardProps) {
+function CornerBracket({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) {
+  const isTop = position === 'tl' || position === 'tr';
+  const isLeft = position === 'tl' || position === 'bl';
+  return (
+    <View
+      style={[
+        styles.bracket,
+        isTop ? styles.bracketTop : styles.bracketBottom,
+        isLeft ? styles.bracketLeft : styles.bracketRight,
+        {
+          borderTopWidth: isTop ? 2 : 0,
+          borderBottomWidth: isTop ? 0 : 2,
+          borderLeftWidth: isLeft ? 2 : 0,
+          borderRightWidth: isLeft ? 0 : 2,
+        },
+      ]}
+    />
+  );
+}
+
+export function CameraFeedCard({ videoUrl, videoOffset = 0, isOffline = false }: CameraFeedCardProps) {
   const hasVideo = !isOffline && !!videoUrl;
   return (
     <View style={styles.container}>
       {!hasVideo ? (
         <View style={styles.offlineContent}>
-          <Feather name="video-off" size={36} color="rgba(255,255,255,0.07)" />
+          <Feather name="video-off" size={36} color="rgba(255,255,255,0.15)" />
         </View>
       ) : (
-        <>
-          <Video
-            source={{ uri: videoUrl! }}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            positionMillis={videoOffset * 1000}
-          />
-          {/* Center camera icon overlay (subtle) */}
-          <View style={styles.centerIcon}>
-            <Feather name="video" size={36} color="rgba(255,255,255,0.07)" />
-          </View>
-        </>
+        <Video
+          source={{ uri: videoUrl! }}
+          style={styles.video}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+          positionMillis={videoOffset * 1000}
+        />
       )}
 
-      {/* LIVE badge */}
+      {/* LIVE • 30FPS badge — top right */}
       {hasVideo && (
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
-          <Text style={styles.liveText}>LIVE</Text>
+          <Text style={styles.liveText}>LIVE • 30FPS</Text>
         </View>
       )}
 
-      {/* Bottom label with gradient */}
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.5)']}
-        style={styles.bottomGradient}
-      >
-        <Text style={styles.stallLabel}>{stallLabel}</Text>
-      </LinearGradient>
+      {/* Corner brackets */}
+      <CornerBracket position="tl" />
+      <CornerBracket position="tr" />
+      <CornerBracket position="bl" />
+      <CornerBracket position="br" />
     </View>
   );
 }
 
+const BRACKET_SIZE = 16;
+const BRACKET_INSET = 8;
+
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    height: 192,
-    backgroundColor: Colors.videoBg,
+    height: 230,
+    backgroundColor: '#e1d9cf',
     borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
     position: 'relative',
   },
   video: {
@@ -78,44 +89,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  centerIcon: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   liveBadge: {
     position: 'absolute',
-    top: 8,
-    left: 8,
+    top: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    borderRadius: 4,
+    gap: 6,
+    backgroundColor: 'rgba(251,249,240,0.25)',
+    borderRadius: 34,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#ef4444',
   },
   liveText: {
     ...type.caption2Semibold,
-    color: Colors.white,
+    color: '#fbf9f0',
   },
-  bottomGradient: {
+  bracket: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    paddingTop: 20,
+    width: BRACKET_SIZE,
+    height: BRACKET_SIZE,
+    borderColor: 'rgba(255,255,255,0.7)',
   },
-  stallLabel: {
-    ...type.caption1,
-    color: 'rgba(255,255,255,0.85)',
-  },
+  bracketTop: { top: BRACKET_INSET },
+  bracketBottom: { bottom: BRACKET_INSET },
+  bracketLeft: { left: BRACKET_INSET },
+  bracketRight: { right: BRACKET_INSET },
 });

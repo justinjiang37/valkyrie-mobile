@@ -22,13 +22,7 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Auth guard - DISABLED FOR DEMO (bypasses login)
-// To re-enable auth, uncomment the logic below
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  // DEMO MODE: Skip auth, go straight to app
-  return <>{children}</>;
-
-  /* UNCOMMENT TO RE-ENABLE AUTH:
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -54,7 +48,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-  */
 }
 
 const styles = StyleSheet.create({
