@@ -111,7 +111,7 @@ export default function RootLayout() {
                 options={{
                   headerShown: true,
                   headerTitle: "",
-                  headerBackTitle: "Feeds",
+                  headerBackVisible: false,
                   headerStyle: { backgroundColor: Colors.background },
                   headerTintColor: Colors.textPrimary,
                   headerShadowVisible: false,

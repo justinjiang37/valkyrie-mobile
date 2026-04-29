@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  ScrollView, Text, View, TouchableOpacity, StyleSheet, Dimensions, Linking,
+  ScrollView, Text, View, TouchableOpacity, StyleSheet, Dimensions, Linking, Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
@@ -16,6 +16,11 @@ import { ResolveSheet } from "../../src/components/ResolveSheet";
 
 const screenWidth = Dimensions.get("window").width;
 
+const ALERT_PINK = "#f7e2db";
+const ALERT_ORANGE = "#e24d17";
+const ALERT_ORANGE_BORDER = "rgba(226,77,23,0.5)";
+const CALL_GOLD = "#bda632";
+
 function formatRelativeTime(timestamp: string): string {
   const now = Date.now();
   const then = new Date(timestamp).getTime();
@@ -27,6 +32,21 @@ function formatRelativeTime(timestamp: string): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
+function CornerBracket({ top, left, right, bottom }: {
+  top?: boolean; left?: boolean; right?: boolean; bottom?: boolean;
+}) {
+  return (
+    <View style={{
+      width: 22,
+      height: 22,
+      borderTopWidth: top ? 2 : 0,
+      borderBottomWidth: bottom ? 2 : 0,
+      borderLeftWidth: left ? 2 : 0,
+      borderRightWidth: right ? 2 : 0,
+      borderColor: "rgba(255,255,255,0.6)",
+    }} />
+  );
+}
 
 export default function StallDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,14 +80,12 @@ export default function StallDetailScreen() {
         .limit(48);
       if (!cancelled && data) setHistory(data as { timestamp: string; overall: number }[]);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id, score?.timestamp]);
+
   const stallIndex = stalls.findIndex((s) => s.id === id);
   const videoOffset = stallIndex * 3.7 + stallIndex * 1.3;
 
-  // Get first active alert for this stall
   const stallAlert = alerts.find(
     (a) => a.stallId === id && a.status !== "resolved"
   );
@@ -80,8 +98,6 @@ export default function StallDetailScreen() {
     );
   }
 
-  // Build a 48-point hourly timeline. Real health_score rows fill their bucket;
-  // hours with no data default to 10 (1/5, no issues).
   const chartValues = useMemo(() => {
     const now = Date.now();
     return Array.from({ length: 48 }, (_, i) => {
@@ -94,347 +110,419 @@ export default function StallDetailScreen() {
       return row ? Math.round((row.overall - 10) / 20 + 1) : 1;
     });
   }, [history]);
-  const chartLabels = ["48h", "40h", "32h", "24h", "16h", "8h", "now"];
+
+  const chartLabels = ["48h", "36h", "24h", "12h", "6h", "Now"];
+  const isCritical = stallAlert?.severity === "critical";
+  const vetPhone = settings?.vetPhone ?? "+16507136140";
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Alert card (if there's an active alert) */}
+    <View style={styles.container}>
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Back */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
+        <Feather name="chevron-left" size={22} color={Colors.textPrimary} />
+      </TouchableOpacity>
+
+      {/* Alert card */}
       {stallAlert && (
         <View style={styles.alertCard}>
-          <View style={styles.alertCardInner}>
-            <View style={styles.alertCardHeader}>
-              <Text style={styles.alertHorseName}>{horse.name}</Text>
-              <StatusTag status={stallAlert.severity === "critical" ? "critical" : "warning"} />
-            </View>
-            <Text style={styles.alertMessage} numberOfLines={2}>
-              {stallAlert.message}
-            </Text>
-          </View>
+          <Feather name="alert-circle" size={28} color={ALERT_ORANGE} />
+          <Text style={styles.alertMessageText}>
+            {stallAlert.message}{"  "}
+            <Text style={styles.alertTimestamp}>{formatRelativeTime(stallAlert.timestamp)}</Text>
+          </Text>
           <View style={styles.alertActions}>
-            <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.8} onPress={() => resolveAlert(stallAlert.id)}>
-              <Text style={styles.secondaryBtnText}>Mark Resolved</Text>
+            <TouchableOpacity style={styles.viewFootageBtn} activeOpacity={0.8}>
+              <Feather name="eye" size={20} color="#fbf9f0" />
+              <Text style={styles.viewFootageText}>View footage</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              activeOpacity={0.8}
-              onPress={() => Linking.openURL("tel:+16507136140")}
-            >
-              <Text style={styles.primaryBtnText}>Call Dr. Jun</Text>
-            </TouchableOpacity>
+            <View style={styles.alertSecondaryRow}>
+              <TouchableOpacity
+                style={styles.outlineBtn}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(`tel:${vetPhone}`)}
+              >
+                <Feather name="phone-call" size={16} color={ALERT_ORANGE} />
+                <Text style={styles.outlineBtnText}>Call Dr. Jun</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.outlineBtn}
+                activeOpacity={0.8}
+                onPress={() => setResolveSheetOpen(true)}
+              >
+                <Text style={styles.outlineBtnText}>Mark as Resolved</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
 
-      {/* Stall & Horse Info section */}
-      <View style={styles.infoSection}>
-        <Text style={styles.stallLabel}>{stall.name}</Text>
-        <Text style={styles.horseName}>{horse.name}</Text>
+      {/* Horse detail section */}
+      <View style={styles.horseSection}>
+        {/* Header row */}
+        <View style={styles.horseHeader}>
+          {horse.imageUrl ? (
+            <Image source={{ uri: horse.imageUrl }} style={styles.horseAvatar} />
+          ) : (
+            <View style={[styles.horseAvatar, styles.horseAvatarFallback]} />
+          )}
+          <View style={styles.horseHeaderInfo}>
+            <Text style={styles.stallLabel}>{stall.name.toUpperCase()}</Text>
+            <View style={styles.horseNameRow}>
+              <Text style={styles.horseName}>{horse.name}</Text>
+              <Feather name="chevron-up" size={20} color={Colors.textPrimary} />
+            </View>
+          </View>
+        </View>
 
         {/* Video */}
-        <View style={styles.videoContainer}>
-          {isOffline || !horse.videoUrl ? (
-            <View style={styles.offlinePlaceholder}>
-              <Feather name="video-off" size={40} color="rgba(255,255,255,0.07)" />
+        <View>
+          <View style={styles.videoContainer}>
+            {isOffline || !horse.videoUrl ? (
+              <View style={styles.offlinePlaceholder}>
+                <Feather name="video-off" size={40} color="rgba(255,255,255,0.07)" />
+              </View>
+            ) : (
+              <Video
+                source={{ uri: horse.videoUrl }}
+                style={styles.video}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay
+                isLooping
+                isMuted
+                positionMillis={videoOffset * 1000}
+              />
+            )}
+            <View style={[styles.corner, styles.cornerTL]}>
+              <CornerBracket top left />
             </View>
-          ) : (
-            <Video
-              source={{ uri: horse.videoUrl }}
-              style={styles.video}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay
-              isLooping
-              isMuted
-              positionMillis={videoOffset * 1000}
-            />
-          )}
-          {!isOffline && horse.videoUrl && (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
+            <View style={[styles.corner, styles.cornerTR]}>
+              <CornerBracket top right />
             </View>
-          )}
+            <View style={[styles.corner, styles.cornerBL]}>
+              <CornerBracket bottom left />
+            </View>
+            <View style={[styles.corner, styles.cornerBR]}>
+              <CornerBracket bottom right />
+            </View>
+            {!isOffline && horse.videoUrl && (
+              <View style={styles.liveBadge}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE • 30FPS</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: isOffline ? "#9d9a8d" : "#22c55e" }]} />
+            <Text style={styles.statusText}>{isOffline ? "Offline" : "Online"}</Text>
+          </View>
         </View>
 
-        {/* Info rows */}
-        <View style={styles.infoRows}>
-          <InfoRow label="Breed" value={horse.breed} />
-          <InfoRow label="Age" value={`${horse.age} years`} />
-          <InfoRow label="Camera" value={isOffline ? "Offline" : "Online"} />
+        {/* Call vet CTA */}
+        <View style={styles.ctaSection}>
+          <TouchableOpacity
+            style={styles.callVetBtn}
+            activeOpacity={0.8}
+            onPress={() => Linking.openURL(`tel:${vetPhone}`)}
+          >
+            <Feather name="phone-call" size={17} color="#fbf9f0" />
+            <Text style={styles.callVetText}>Call Dr. Jun</Text>
+          </TouchableOpacity>
+          {isCritical && (
+            <Text style={styles.recommendedText}>RECOMMENDED: Critical risk</Text>
+          )}
         </View>
-
-        {/* Call Vet button */}
-        <TouchableOpacity
-          style={styles.callVetFullBtn}
-          activeOpacity={0.8}
-          onPress={() => Linking.openURL("tel:+16507136140")}
-        >
-          <Text style={styles.callVetFullText}>Call Dr. Jun</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Timeline section */}
+      {/* Timeline */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>TIMELINE</Text>
-        <View style={styles.timelineCard}>
-          <LineChart
-            data={{
-              labels: chartLabels,
-              datasets: [{ data: chartValues, color: () => Colors.textPrimary, strokeWidth: 2 }],
-            }}
-            width={screenWidth - 72}
-            height={170}
-            yAxisSuffix="/5"
-            yAxisInterval={1}
-            fromZero={false}
-            chartConfig={{
-              backgroundColor: Colors.white,
-              backgroundGradientFrom: Colors.white,
-              backgroundGradientTo: Colors.white,
-              decimalPlaces: 0,
-              color: () => Colors.border,
-              labelColor: () => Colors.textTertiary,
-              propsForDots: { r: "0" },
-              propsForBackgroundLines: { stroke: Colors.border, strokeDasharray: "4,4" },
-            }}
-            style={{ marginLeft: -8, borderRadius: 8 }}
-            bezier
-            withDots={false}
-          />
+        <View style={styles.sectionHeaderGroup}>
+          <Text style={styles.sectionLabel}>TIMELINE</Text>
+          <Text style={styles.sectionSubLabel}>Status over last 48 data points</Text>
         </View>
+        <LineChart
+          data={{
+            labels: chartLabels,
+            datasets: [{ data: chartValues, color: () => Colors.textPrimary, strokeWidth: 2 }],
+          }}
+          width={screenWidth - 32}
+          height={170}
+          yAxisSuffix="/5"
+          yAxisInterval={1}
+          fromZero={false}
+          chartConfig={{
+            backgroundColor: Colors.background,
+            backgroundGradientFrom: Colors.background,
+            backgroundGradientTo: Colors.background,
+            decimalPlaces: 0,
+            color: () => Colors.border,
+            labelColor: () => Colors.textTertiary,
+            propsForDots: { r: "0" },
+            propsForBackgroundLines: { stroke: Colors.border, strokeDasharray: "4,4" },
+          }}
+          style={{ marginLeft: -8, borderRadius: 8 }}
+          bezier
+          withDots={false}
+        />
       </View>
 
-      {/* Behavioral annotations */}
+      {/* Behavioral Annotations */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>BEHAVIORAL ANNOTATIONS</Text>
-        {stallAnnotations.length > 0 ? (
-          stallAnnotations.map((ann, index) => (
-            <View
-              key={ann.id}
-              style={[
-                styles.annotationRow,
-                index < stallAnnotations.length - 1 && styles.annotationDivider,
-              ]}
-            >
-              <View style={styles.annHeader}>
-                <Text style={styles.annHorse}>{horse.name}</Text>
-                <Text style={styles.annTime}>{formatRelativeTime(ann.timestamp)}</Text>
-              </View>
-              <Text style={styles.annMessage} numberOfLines={2}>
-                {ann.message}
-              </Text>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.emptyText}>No annotations recorded.</Text>
-        )}
+        <View>
+          {stallAnnotations.length > 0 ? (
+            stallAnnotations.map((ann, index) => {
+              const isFirst = index === 0;
+              const isLast = index === stallAnnotations.length - 1;
+              const annStatus = ann.severity === "critical" ? "critical"
+                : ann.severity === "warning" ? "warning"
+                : "info";
+              return (
+                <React.Fragment key={ann.id}>
+                  <View style={[styles.annotationRow, isFirst && styles.annotationCardBg]}>
+                    <View style={styles.annHeader}>
+                      <Text style={styles.annHorse}>{horse.name}</Text>
+                      <View style={styles.annMeta}>
+                        <Text style={styles.annTime}>{formatRelativeTime(ann.timestamp)}</Text>
+                        <StatusTag status={annStatus} />
+                      </View>
+                    </View>
+                    <Text style={styles.annMessage}>{ann.message}</Text>
+                  </View>
+                  {!isLast && <View style={styles.annotationDivider} />}
+                </React.Fragment>
+              );
+            })
+          ) : (
+            <Text style={styles.emptyText}>No annotations recorded.</Text>
+          )}
+        </View>
       </View>
 
       <View style={{ height: 40 }} />
-
-      <ResolveSheet
-        open={resolveSheetOpen}
-        onClose={() => setResolveSheetOpen(false)}
-        alert={stallAlert ?? null}
-        onResolve={handleResolve}
-      />
     </ScrollView>
-  );
-}
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+    <ResolveSheet
+      open={resolveSheetOpen}
+      onClose={() => setResolveSheetOpen(false)}
+      alert={stallAlert ?? null}
+      onResolve={handleResolve}
+    />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingHorizontal: 16, paddingBottom: 20 },
+  flex: { flex: 1 },
+  content: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, gap: 32 },
   notFound: { flex: 1, justifyContent: "center", alignItems: "center" },
-  notFoundText: { ...type.body, color: Colors.textSecondary },
+  notFoundText: { ...type.body, color: Colors.textTertiary },
+
+  backButton: {
+    width: 36,
+    height: 20,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
 
   // Alert card
   alertCard: {
-    backgroundColor: Colors.cardBg,
+    backgroundColor: ALERT_PINK,
     borderRadius: 8,
-    padding: 16,
-    marginBottom: 24,
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 12,
   },
-  alertCardInner: {
-    backgroundColor: Colors.white,
-    borderRadius: 7,
-    paddingHorizontal: 19,
-    paddingVertical: 14,
-    gap: 8,
+  alertMessageText: {
+    ...type.callout,
+    fontWeight: "500",
+    color: "rgba(43,41,35,0.75)",
   },
-  alertCardHeader: {
+  alertTimestamp: {
+    ...type.caption1,
+    color: "rgba(43,41,35,0.25)",
+  },
+  alertActions: { gap: 12 },
+  viewFootageBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    gap: 10,
+    height: 48,
+    backgroundColor: ALERT_ORANGE,
+    borderRadius: 47,
   },
-  alertHorseName: {
-    ...type.headline,
-    color: Colors.textPrimary,
-  },
-  alertMessage: {
+  viewFootageText: {
     ...type.callout,
-    color: Colors.textSecondary,
+    fontWeight: "500",
+    color: "#fbf9f0",
   },
-  alertActions: {
+  alertSecondaryRow: {
     flexDirection: "row",
     gap: 8,
   },
-  secondaryBtn: {
+  outlineBtn: {
     flex: 1,
-    height: 48,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.secondary,
-    borderRadius: 999,
-  },
-  secondaryBtnText: {
-    ...type.callout,
-    color: Colors.textPrimary,
-  },
-  primaryBtn: {
-    flex: 1,
+    gap: 6,
     height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.accent,
-    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: ALERT_ORANGE_BORDER,
+    borderRadius: 83,
+    backgroundColor: ALERT_PINK,
   },
-  primaryBtnText: {
+  outlineBtnText: {
     ...type.callout,
-    color: "#FFFDF0",
+    fontWeight: "500",
+    color: ALERT_ORANGE,
   },
 
-  // Info section
-  infoSection: {
+  // Horse section
+  horseSection: { gap: 24 },
+  horseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
-    marginBottom: 24,
   },
+  horseAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  horseAvatarFallback: {
+    backgroundColor: Colors.border,
+  },
+  horseHeaderInfo: { flex: 1 },
   stallLabel: {
     ...type.caption1Medium,
     color: Colors.textTertiary,
   },
+  horseNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   horseName: {
-    ...type.title1,
-    color: Colors.textPrimary,
+    fontSize: 24,
+    fontWeight: "500",
+    color: "#2b2923",
+    lineHeight: 28,
   },
 
   // Video
   videoContainer: {
-    height: 192,
+    height: 230,
     borderRadius: 8,
-    overflow: "hidden" as const,
+    overflow: "hidden",
     backgroundColor: Colors.videoBg,
-    position: "relative" as const,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   video: { width: "100%", height: "100%" },
   offlinePlaceholder: {
     flex: 1,
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
+    justifyContent: "center",
+    alignItems: "center",
   },
+  corner: { position: "absolute", padding: 6 },
+  cornerTL: { top: 0, left: 0 },
+  cornerTR: { top: 0, right: 0 },
+  cornerBL: { bottom: 0, left: 0 },
+  cornerBR: { bottom: 0, right: 0 },
   liveBadge: {
-    position: "absolute" as const,
-    top: 8,
-    left: 8,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(251,249,240,0.25)",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 34,
   },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#ef4444" },
-  liveText: { ...type.caption2Semibold, color: Colors.white },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444" },
+  liveText: { ...type.caption2Semibold, color: "#fbf9f0" },
 
-  // Info rows
-  infoRows: {
-    gap: 0,
-  },
-  infoRow: {
+  statusRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 8,
   },
-  infoLabel: {
-    ...type.callout,
-    color: Colors.textTertiary,
-  },
-  infoValue: {
-    ...type.callout,
-    color: Colors.textPrimary,
-  },
+  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
+  statusText: { ...type.callout, color: Colors.textPrimary },
 
-  // Call vet button
-  callVetFullBtn: {
-    height: 48,
+  // CTA
+  ctaSection: { gap: 8, alignItems: "center" },
+  callVetBtn: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colors.accent,
-    borderRadius: 999,
-    marginTop: 16,
+    gap: 10,
+    height: 48,
+    width: "100%",
+    backgroundColor: CALL_GOLD,
+    borderRadius: 47,
   },
-  callVetFullText: {
+  callVetText: {
     ...type.callout,
-    color: "#FFFDF0",
+    fontWeight: "500",
+    color: "#fbf9f0",
+  },
+  recommendedText: {
+    ...type.caption1Medium,
+    color: ALERT_ORANGE,
+    textAlign: "center",
   },
 
   // Sections
-  section: {
-    marginBottom: 24,
-    gap: 12,
-  },
-  sectionLabel: {
-    ...type.caption1Medium,
-    color: Colors.textTertiary,
-    paddingHorizontal: 0,
-  },
-  timelineCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 8,
-    padding: 16,
-  },
+  section: { gap: 12 },
+  sectionHeaderGroup: { gap: 4 },
+  sectionLabel: { ...type.caption1Medium, color: Colors.textTertiary },
+  sectionSubLabel: { ...type.caption1, color: Colors.textTertiary },
 
   // Annotations
   annotationRow: {
-    paddingVertical: 14,
-    gap: 8,
+    paddingVertical: 12,
+    gap: 5,
+  },
+  annotationCardBg: {
+    backgroundColor: ALERT_PINK,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   annotationDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.08)",
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.08)",
   },
   annHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 8,
   },
   annHorse: {
-    ...type.headline,
+    fontSize: 16,
+    fontWeight: "600",
     color: Colors.textPrimary,
+  },
+  annMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   annTime: {
     ...type.caption1,
     color: Colors.textFaint,
+    textAlign: "right",
   },
-  annMessage: {
-    ...type.callout,
-    color: Colors.textSecondary,
-  },
+  annMessage: { ...type.callout, color: Colors.textSecondary },
   emptyText: {
     ...type.callout,
     color: Colors.textQuaternary,

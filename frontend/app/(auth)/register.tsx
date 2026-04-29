@@ -12,19 +12,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/theme';
 import { type } from '../../src/constants/typography';
 
-// Spark logo icon
 function SparkIcon() {
   return (
-    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={10} fill={Colors.accent} />
+    <Svg width={42} height={49} viewBox="0 0 23 27" fill="none">
       <Path
-        d="M12 6L13.5 10.5L18 12L13.5 13.5L12 18L10.5 13.5L6 12L10.5 10.5L12 6Z"
-        fill="white"
+        d="M0.37418 -1.85373e-06L13.7567 4.28575C17.8679 5.60236 20.1368 10.0092 18.8202 14.1204L5.43768 9.83462C1.32648 8.51801 -0.942431 4.1112 0.37418 -1.85373e-06Z"
+        fill="#2B2923"
+      />
+      <Path
+        d="M5.53739 11.2516L19.5599 15.7423C21.5955 16.3942 22.7194 18.5771 22.0675 20.6127L21.6583 21.8905L8.91356 17.809C6.17127 16.9308 4.65917 13.9939 5.53739 11.2516Z"
+        fill="#2B2923"
+      />
+      <Path
+        d="M14.3157 20.8547L21.4211 23.1037L20.8564 24.8878C20.4935 26.0344 19.2697 26.6698 18.1231 26.3068L16.9542 25.9369C14.8222 25.262 13.6409 22.9867 14.3157 20.8547Z"
+        fill="#2B2923"
       />
     </Svg>
   );
