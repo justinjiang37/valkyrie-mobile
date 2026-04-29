@@ -87,7 +87,7 @@ export const annotations: Record<string, Annotation[]> = {
 };
 
 export const defaultSettings: FarmSettings = {
-  farmName: "Green Valley Equestrian",
+  farmName: "Barn 19",
   ownerName: "Sarah Mitchell",
   phone: "(555) 234-5678",
   email: "user@farm.com",

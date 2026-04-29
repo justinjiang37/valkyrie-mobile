@@ -5,7 +5,6 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 
 const API_BASE = "http://localhost:8000";
-const BELLA_STALL_ID = "s2";
 
 export interface Toast {
   id: string;
@@ -132,8 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [checkedStalls, setCheckedStalls] = useState<Record<string, string>>({});
   const [horses, setHorses] = useState<Horse[]>([]);
   const [stalls, setStalls] = useState<Stall[]>([]);
-  const alertCooldowns = useRef<Record<string, number>>({});
-  const lastBellaRiskRef = useRef<number | null>(null);
+  const lastRiskRef = useRef<Record<string, number>>({});
   const horsesRef = useRef<Horse[]>([]);
   const stallsRef = useRef<Stall[]>([]);
   const alertNotificationsRef = useRef<boolean>(defaultSettings.alertNotifications);
@@ -215,42 +213,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCheckedStalls((prev) => ({ ...prev, [stallId]: new Date().toISOString() }));
   }, []);
 
-  // Bella CV backend polling
+  // CV backend polling for all horses
   useEffect(() => {
+    if (horses.length === 0) return;
     let cancelled = false;
-    let poll: ReturnType<typeof setInterval> | null = null;
 
-    const applyResult = (risk: number) => {
+    const applyResult = (stallId: string, risk: number) => {
       const overall = (risk - 1) * 20 + 10;
       setScores((prev) => ({
         ...prev,
-        [BELLA_STALL_ID]: {
-          ...prev[BELLA_STALL_ID],
+        [stallId]: {
+          ...prev[stallId],
           overall,
           status: getStatus(overall),
           timestamp: new Date().toISOString(),
         },
       }));
 
-      if (risk >= 3 && risk !== lastBellaRiskRef.current) {
-        const lastAlert = alertCooldowns.current[BELLA_STALL_ID] || 0;
+      if (risk >= 3) {
         const nowMs = Date.now();
-        if (nowMs - lastAlert > 5 * 60 * 1000) {
-          alertCooldowns.current[BELLA_STALL_ID] = nowMs;
-          const horse = horsesRef.current.find((h) => h.stallId === BELLA_STALL_ID);
-          const stall = stallsRef.current.find((s) => s.id === BELLA_STALL_ID);
-          if (horse && stall) {
-            const severity = risk === 5 ? ("critical" as const) : ("warning" as const);
-            const timestamp = new Date().toISOString();
-            const message = `${horse.name}'s illness risk is ${risk}/5. ${
-              severity === "critical" ? "Immediate attention required." : "Behavioral changes detected."
-            }`;
+        const horse = horsesRef.current.find((h) => h.stallId === stallId);
+        const stall = stallsRef.current.find((s) => s.id === stallId);
+        if (horse && stall) {
+          const severity = risk === 5 ? ("critical" as const) : ("warning" as const);
+          const timestamp = new Date().toISOString();
+          const message = `${horse.name}'s illness risk is ${risk}/5. ${
+            severity === "critical" ? "Immediate attention required." : "Behavioral changes detected."
+          }`;
 
+          const isNewEvent = risk !== lastRiskRef.current[stallId];
+
+          setAlerts((prev) => {
+            const existing = prev.find(
+              (a) => a.stallId === stallId && a.status !== "resolved"
+            );
+            if (existing) {
+              (async () => {
+                await supabase
+                  .from("alerts")
+                  .update({ timestamp, severity, message })
+                  .eq("id", existing.id);
+              })();
+              return prev.map((a) =>
+                a.id === existing.id ? { ...a, timestamp, severity, message } : a
+              );
+            }
             (async () => {
               const { data } = await supabase
                 .from("alerts")
                 .insert({
-                  stall_id: BELLA_STALL_ID,
+                  stall_id: stallId,
                   horse_id: horse.id,
                   timestamp,
                   severity,
@@ -263,56 +275,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setAlerts((a) => [alertFromRow(data as AlertRow), ...a]);
               }
             })();
+            return prev;
+          });
 
-            if (alertNotificationsRef.current) {
-              const tempId = `t-${nowMs}-${BELLA_STALL_ID}`;
-              const toast: Toast = {
-                id: tempId,
-                horseName: horse.name,
-                stallName: stall.name,
-                score: overall,
-                severity,
-                stallId: BELLA_STALL_ID,
-              };
-              setToasts((t) => [...t, toast]);
-              setTimeout(() => {
-                setToasts((t) => t.filter((x) => x.id !== tempId));
-              }, 8000);
-            }
+          if (isNewEvent && alertNotificationsRef.current) {
+            const tempId = `t-${nowMs}-${stallId}`;
+            const toast: Toast = {
+              id: tempId,
+              horseName: horse.name,
+              stallName: stall.name,
+              score: overall,
+              severity,
+              stallId,
+            };
+            setToasts((t) => [...t, toast]);
+            setTimeout(() => {
+              setToasts((t) => t.filter((x) => x.id !== tempId));
+            }, 8000);
           }
         }
       }
-      lastBellaRiskRef.current = risk;
+      lastRiskRef.current[stallId] = risk;
     };
 
-    const pollStatus = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/horses/bella/status`);
-        if (!res.ok) return;
-        const job = await res.json();
-        const risk = job?.results?.illness_risk_score;
-        if (typeof risk === "number") applyResult(risk);
-      } catch {
-        // backend unreachable
-      }
+    const tracked = horses
+      .filter((h) => h.stallId)
+      .map((h) => ({ stallId: h.stallId, backendId: h.name.toLowerCase() }));
+
+    const pollAll = async () => {
+      await Promise.all(
+        tracked.map(async ({ stallId, backendId }) => {
+          try {
+            const res = await fetch(`${API_BASE}/api/horses/${backendId}/status`);
+            if (!res.ok) return;
+            const job = await res.json();
+            const risk = job?.results?.illness_risk_score;
+            if (typeof risk === "number" && !cancelled) applyResult(stallId, risk);
+          } catch {
+            // backend unreachable
+          }
+        })
+      );
     };
 
-    (async () => {
-      try {
-        await fetch(`${API_BASE}/api/horses/bella/analyze`, { method: "POST" });
-      } catch {
-        return;
-      }
-      if (cancelled) return;
-      poll = setInterval(pollStatus, 5000);
-      pollStatus();
-    })();
+    const poll = setInterval(pollAll, 5000);
+    pollAll();
 
     return () => {
       cancelled = true;
-      if (poll) clearInterval(poll);
+      clearInterval(poll);
     };
-  }, []);
+  }, [horses]);
 
   return (
     <AppContext.Provider

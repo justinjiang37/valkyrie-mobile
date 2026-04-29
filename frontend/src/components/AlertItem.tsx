@@ -1,8 +1,8 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 import { Alert } from "../data/types";
 import { useApp } from "../context/AppContext";
-import { Colors } from "../constants/theme";
 import { type } from "../constants/typography";
 
 function formatRelativeTime(timestamp: string): string {
@@ -20,47 +20,54 @@ function formatRelativeTime(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
+function AlertIcon({ color }: { color: string }) {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 23 23" fill="none">
+      <Circle cx={11.5} cy={11.5} r={10.5} stroke={color} strokeWidth={1.5} />
+      <Path d="M11.5 7v5" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Circle cx={11.5} cy={15.5} r={0.75} fill={color} stroke={color} strokeWidth={0.5} />
+    </Svg>
+  );
+}
+
 interface AlertItemProps {
   alert: Alert;
   onPress?: () => void;
 }
 
-// Dot icon component matching web design
-function DotsIcon() {
-  return (
-    <View style={styles.dotsContainer}>
-      <View style={styles.dot} />
-      <View style={styles.dot} />
-      <View style={styles.dot} />
-    </View>
-  );
-}
+const severityStyles: Record<Alert["severity"], { bg: string; iconColor: string; timeColor: string }> = {
+  critical: {
+    bg: "#f7e2db",
+    iconColor: "#d40101",
+    timeColor: "rgba(43,41,35,0.25)",
+  },
+  warning: {
+    bg: "#fff3dc",
+    iconColor: "#e7a000",
+    timeColor: "rgba(43,41,35,0.25)",
+  },
+};
 
 export default function AlertItem({ alert, onPress }: AlertItemProps) {
   const { horses } = useApp();
   const horse = horses.find((h) => h.id === alert.horseId);
   const horseName = horse?.name ?? "Unknown";
   const timeAgo = formatRelativeTime(alert.timestamp);
+  const sv = severityStyles[alert.severity];
 
   return (
     <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.94}
+      style={[styles.card, { backgroundColor: sv.bg }]}
+      activeOpacity={0.92}
       onPress={onPress}
     >
-      {/* Header row */}
-      <View style={styles.header}>
-        <Text style={styles.headerLabel}>ALERT</Text>
-        <DotsIcon />
-      </View>
-
-      {/* Inner white card */}
-      <View style={styles.innerCard}>
-        <View style={styles.innerHeader}>
+      <AlertIcon color={sv.iconColor} />
+      <View style={styles.body}>
+        <View style={styles.headerRow}>
           <Text style={styles.horseName}>{horseName}</Text>
-          <Text style={styles.timeAgo}>{timeAgo}</Text>
+          <Text style={[styles.timeAgo, { color: sv.timeColor }]}>{timeAgo}</Text>
         </View>
-        <Text style={styles.message} numberOfLines={2}>
+        <Text style={styles.message} numberOfLines={3}>
           {alert.message}
         </Text>
       </View>
@@ -70,55 +77,30 @@ export default function AlertItem({ alert, onPress }: AlertItemProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.cardBg,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 20,
     gap: 12,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerLabel: {
-    ...type.caption1Medium,
-    color: Colors.textTertiary,
-  },
-  dotsContainer: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.textQuaternary,
-  },
-  innerCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 7,
-    paddingHorizontal: 19,
-    paddingVertical: 14,
+  body: {
     gap: 8,
   },
-  innerHeader: {
+  headerRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
   },
   horseName: {
-    ...type.headline,
-    color: Colors.textPrimary,
+    ...type.calloutBold,
+    color: "#2b2923",
   },
   timeAgo: {
     ...type.caption1,
-    color: Colors.textFaint,
     flexShrink: 0,
   },
   message: {
     ...type.callout,
-    color: Colors.textSecondary,
+    color: "rgba(43,41,35,0.75)",
   },
 });
