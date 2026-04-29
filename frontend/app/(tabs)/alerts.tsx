@@ -1,22 +1,49 @@
 import React, { useState } from "react";
-import { ScrollView, Text, View, TouchableOpacity, StyleSheet } from "react-native";
+import { Image, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import Svg, { Line } from "react-native-svg";
+import Svg, { Line, Path, Circle } from "react-native-svg";
 import { useApp } from "../../src/context/AppContext";
 import { StatusTag } from "../../src/components/StatusTag";
+import { FilterSheet, type AlertFilters } from "../../src/components/FilterSheet";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
 
 type TabId = "active" | "info" | "resolved";
 
-// Section dot component
-function SectionDot({ color }: { color: string }) {
-  return <View style={[styles.sectionDot, { backgroundColor: color }]} />;
+function CriticalIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Circle cx="10" cy="10" r="9" stroke="rgba(43,41,35,0.5)" strokeWidth="1.5" />
+      <Path d="M10 6v5" stroke="rgba(43,41,35,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+      <Circle cx="10" cy="14" r="0.75" fill="rgba(43,41,35,0.5)" />
+    </Svg>
+  );
 }
 
+function WarningIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path
+        d="M10 3L18.66 17.5H1.34L10 3Z"
+        stroke="rgba(43,41,35,0.5)"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <Path d="M10 9v4" stroke="rgba(43,41,35,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+      <Circle cx="10" cy="14.5" r="0.75" fill="rgba(43,41,35,0.5)" />
+    </Svg>
+  );
+}
 
-// Filter icon for Resolved tab
+function ArrowRightIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Path d="M4 10h12M12 6l4 4-4 4" stroke={Colors.textPrimary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 function FilterIcon() {
   return (
     <Svg width={16} height={12} viewBox="0 0 16 12" fill="none">
@@ -27,27 +54,40 @@ function FilterIcon() {
   );
 }
 
-// Section header component
-function SectionHeader({
-  label,
-  dotColor,
-}: {
-  label: string;
-  dotColor?: string;
-}) {
+function WatchLevelCard() {
+  const router = useRouter();
   return (
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionHeaderLeft}>
-        {dotColor && <SectionDot color={dotColor} />}
-        <Text style={styles.sectionLabel}>{label}</Text>
+    <View style={styles.watchCard}>
+      <View style={styles.watchCardContent}>
+        <Text style={styles.watchCardTitle}>Set your watch level</Text>
+        <Text style={styles.watchCardBody}>
+          Tell us how closely to monitor each horse. Higher levels mean higher sensitivity to changes: helpful during recovery, travel stress, or seasonal changes.
+        </Text>
       </View>
+      <TouchableOpacity
+        style={styles.watchCardButton}
+        onPress={() => router.push("/(tabs)/profile")}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.watchCardButtonText}>Manage in Profile</Text>
+        <ArrowRightIcon />
+      </TouchableOpacity>
     </View>
   );
 }
 
-// Alert row component
+function SectionHeader({ label, icon }: { label: string; icon: React.ReactNode }) {
+  return (
+    <View style={styles.sectionHeader}>
+      {icon}
+      <Text style={styles.sectionLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function AlertRow({
   horseName,
+  horseImageUrl,
   timeAgo,
   message,
   status,
@@ -56,6 +96,7 @@ function AlertRow({
   onPress,
 }: {
   horseName: string;
+  horseImageUrl: string;
   timeAgo: string;
   message: string;
   status: "healthy" | "warning" | "critical" | "info";
@@ -64,29 +105,34 @@ function AlertRow({
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.alertRow, showDivider && styles.alertRowDivider]}
-      activeOpacity={0.96}
-      onPress={onPress}
-    >
-      <View style={styles.alertRowHeader}>
-        <Text style={styles.alertHorseName}>{horseName}</Text>
-        <View style={styles.alertRowRight}>
-          <Text style={styles.alertTimeAgo}>{timeAgo}</Text>
-          <StatusTag status={status} />
+    <>
+      <TouchableOpacity style={styles.alertRow} activeOpacity={0.96} onPress={onPress}>
+        {horseImageUrl ? (
+          <Image source={{ uri: horseImageUrl }} style={styles.horseAvatar} />
+        ) : (
+          <View style={[styles.horseAvatar, styles.horseAvatarPlaceholder]} />
+        )}
+        <View style={styles.alertContent}>
+          <View style={styles.alertRowHeader}>
+            <Text style={styles.alertHorseName}>{horseName}</Text>
+            <View style={styles.alertRowRight}>
+              <Text style={styles.alertTimeAgo}>{timeAgo}</Text>
+              <StatusTag status={status} />
+            </View>
+          </View>
+          <Text
+            style={isUnread ? styles.alertMessageUnread : styles.alertMessageRead}
+            numberOfLines={2}
+          >
+            {message}
+          </Text>
         </View>
-      </View>
-      <Text
-        style={isUnread ? styles.alertMessageUnread : styles.alertMessageRead}
-        numberOfLines={2}
-      >
-        {message}
-      </Text>
-    </TouchableOpacity>
+      </TouchableOpacity>
+      {showDivider && <View style={styles.rowDivider} />}
+    </>
   );
 }
 
-// Section divider
 function SectionDivider() {
   return <View style={styles.sectionDivider} />;
 }
@@ -96,50 +142,64 @@ export default function AlertsScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("active");
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<AlertFilters>({
+    urgency: new Set(),
+    horseIds: new Set(),
+    date: null,
+  });
 
-  const markRead = (id: string) => {
-    setReadIds((prev) => new Set([...prev, id]));
-  };
+  const markRead = (id: string) => setReadIds((prev) => new Set([...prev, id]));
 
-  // Categorize alerts
   const criticalAlerts = alerts.filter((a) => a.status !== "resolved" && a.severity === "critical");
   const warningAlerts = alerts.filter((a) => a.status !== "resolved" && a.severity === "warning");
-  const resolvedAlerts = alerts.filter((a) => a.status === "resolved");
 
-  // Format relative time
+  const resolvedAlerts = alerts.filter((a) => {
+    if (a.status !== "resolved") return false;
+    if (filters.urgency.size > 0 && !filters.urgency.has(a.severity)) return false;
+    if (filters.horseIds.size > 0 && !filters.horseIds.has(a.horseId)) return false;
+    if (filters.date) {
+      const alertDate = new Date(a.timestamp);
+      const f = filters.date;
+      if (
+        alertDate.getFullYear() !== f.getFullYear() ||
+        alertDate.getMonth() !== f.getMonth() ||
+        alertDate.getDate() !== f.getDate()
+      ) return false;
+    }
+    return true;
+  });
+
+  const hasActiveFilters =
+    filters.urgency.size > 0 || filters.horseIds.size > 0 || filters.date !== null;
+
   const formatTimeAgo = (timestamp: string): string => {
-    const now = Date.now();
-    const then = new Date(timestamp).getTime();
-    const diffMin = Math.floor((now - then) / 60000);
+    const diffMin = Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000);
     if (diffMin < 60) return `${diffMin} min ago`;
     const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffHr < 24) return `${diffHr} hr ago`;
     return `${Math.floor(diffHr / 24)}d ago`;
   };
 
   const handleAlertPress = (alertItem: typeof alerts[0]) => {
     markRead(alertItem.id);
     const stall = stalls.find((s) => s.id === alertItem.stallId);
-    if (stall) {
-      router.push(`/stall/${stall.id}`);
-    }
+    if (stall) router.push(`/stall/${stall.id}`);
   };
 
-  const getHorseName = (horseId: string) => {
-    return horses.find((h) => h.id === horseId)?.name ?? "Unknown";
-  };
+  const getHorse = (horseId: string) => horses.find((h) => h.id === horseId);
 
   const activeCount = criticalAlerts.length + warningAlerts.length;
+  const infoCount = 0;
 
   const tabs = [
     { id: "active" as TabId, label: `Active (${activeCount})` },
-    { id: "info" as TabId, label: "Info (0)" },
+    { id: "info" as TabId, label: `Info (${infoCount})` },
     { id: "resolved" as TabId, label: "Resolved" },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header + tab pills */}
       <View style={styles.header}>
         <Text style={styles.title}>Alerts</Text>
         <View style={styles.tabPillContainer}>
@@ -156,9 +216,10 @@ export default function AlertsScreen() {
                   {tab.label}
                 </Text>
                 {tab.id === "resolved" && isSelected && (
-                  <View style={styles.filterIconWrapper}>
+                  <TouchableOpacity onPress={() => setFilterOpen(true)} hitSlop={8} style={styles.filterIconWrap}>
                     <FilterIcon />
-                  </View>
+                    {hasActiveFilters && <View style={styles.filterDot} />}
+                  </TouchableOpacity>
                 )}
               </TouchableOpacity>
             );
@@ -167,100 +228,115 @@ export default function AlertsScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Active tab content */}
-        {activeTab === "active" && (
-          <View style={styles.sectionsContainer}>
-            {/* Critical section */}
-            <View style={styles.section}>
-              <SectionHeader label="CRITICAL" dotColor="#E72A00" />
-              {criticalAlerts.length > 0 && (
-                <View style={styles.cardBg}>
-                  {criticalAlerts.map((alert, index) => (
-                    <AlertRow
-                      key={alert.id}
-                      horseName={getHorseName(alert.horseId)}
-                      timeAgo={formatTimeAgo(alert.timestamp)}
-                      message={alert.message}
-                      status="critical"
-                      isUnread={!readIds.has(alert.id)}
-                      showDivider={index < criticalAlerts.length - 1}
-                      onPress={() => handleAlertPress(alert)}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
+        <View style={styles.scrollContent}>
+          <WatchLevelCard />
 
-            <SectionDivider />
-
-            {/* Warning section */}
-            <View style={styles.section}>
-              <SectionHeader label="WARNING" dotColor="#E7C000" />
-              {warningAlerts.length > 0 && (
-                <View style={styles.warningList}>
-                  {warningAlerts.map((alert, index) => (
-                    <AlertRow
-                      key={alert.id}
-                      horseName={getHorseName(alert.horseId)}
-                      timeAgo={formatTimeAgo(alert.timestamp)}
-                      message={alert.message}
-                      status="warning"
-                      isUnread={!readIds.has(alert.id)}
-                      showDivider={index < warningAlerts.length - 1}
-                      onPress={() => handleAlertPress(alert)}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Info tab - empty for now */}
-        {activeTab === "info" && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No info alerts.</Text>
-          </View>
-        )}
-
-        {/* Resolved tab */}
-        {activeTab === "resolved" && (
-          <View style={styles.sectionsContainer}>
-            {resolvedAlerts.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No resolved alerts.</Text>
-              </View>
-            ) : (
-              resolvedAlerts.map((alert, index) => (
-                <TouchableOpacity
-                  key={alert.id}
-                  style={[
-                    styles.resolvedRow,
-                    index < resolvedAlerts.length - 1 && styles.alertRowDivider,
-                  ]}
-                  activeOpacity={0.96}
-                  onPress={() => handleAlertPress(alert)}
-                >
-                  <View style={styles.alertRowHeader}>
-                    <Text style={styles.alertHorseName}>{getHorseName(alert.horseId)}</Text>
-                    <Text style={styles.alertTimeAgo}>{formatTimeAgo(alert.timestamp)}</Text>
+          {activeTab === "active" && (
+            <View style={styles.sectionsContainer}>
+              <View style={styles.section}>
+                <SectionHeader label="CRITICAL" icon={<CriticalIcon />} />
+                {criticalAlerts.length > 0 ? (
+                  <View style={styles.cardBg}>
+                    {criticalAlerts.map((alert, index) => {
+                      const horse = getHorse(alert.horseId);
+                      return (
+                        <AlertRow
+                          key={alert.id}
+                          horseName={horse?.name ?? "Unknown"}
+                          horseImageUrl={horse?.imageUrl ?? ""}
+                          timeAgo={formatTimeAgo(alert.timestamp)}
+                          message={alert.message}
+                          status="critical"
+                          isUnread={!readIds.has(alert.id)}
+                          showDivider={index < criticalAlerts.length - 1}
+                          onPress={() => handleAlertPress(alert)}
+                        />
+                      );
+                    })}
                   </View>
-                  <Text style={styles.alertMessageRead} numberOfLines={2}>
-                    {alert.message}
-                  </Text>
-                  {alert.note && (
-                    <View style={styles.resolutionNote}>
-                      <Text style={styles.resolutionNoteText}>{alert.note}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        )}
+                ) : (
+                  <Text style={styles.emptyText}>No critical alerts.</Text>
+                )}
+              </View>
 
-        <View style={{ height: 40 }} />
+              <SectionDivider />
+
+              <View style={styles.section}>
+                <SectionHeader label="WARNING" icon={<WarningIcon />} />
+                {warningAlerts.length > 0 ? (
+                  <View>
+                    {warningAlerts.map((alert, index) => {
+                      const horse = getHorse(alert.horseId);
+                      return (
+                        <AlertRow
+                          key={alert.id}
+                          horseName={horse?.name ?? "Unknown"}
+                          horseImageUrl={horse?.imageUrl ?? ""}
+                          timeAgo={formatTimeAgo(alert.timestamp)}
+                          message={alert.message}
+                          status="warning"
+                          isUnread={!readIds.has(alert.id)}
+                          showDivider={index < warningAlerts.length - 1}
+                          onPress={() => handleAlertPress(alert)}
+                        />
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyText}>No warning alerts.</Text>
+                )}
+              </View>
+            </View>
+          )}
+
+          {activeTab === "info" && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No info alerts.</Text>
+            </View>
+          )}
+
+          {activeTab === "resolved" && (
+            <View style={styles.sectionsContainer}>
+              {resolvedAlerts.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>
+                    {hasActiveFilters ? "No resolved alerts match your filters." : "No resolved alerts."}
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  {resolvedAlerts.map((alert, index) => {
+                    const horse = getHorse(alert.horseId);
+                    return (
+                      <AlertRow
+                        key={alert.id}
+                        horseName={horse?.name ?? "Unknown"}
+                        horseImageUrl={horse?.imageUrl ?? ""}
+                        timeAgo={formatTimeAgo(alert.timestamp)}
+                        message={alert.message}
+                        status="info"
+                        isUnread={false}
+                        showDivider={index < resolvedAlerts.length - 1}
+                        onPress={() => handleAlertPress(alert)}
+                      />
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </View>
       </ScrollView>
+
+      <FilterSheet
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        horses={horses}
+        filters={filters}
+        onApply={setFilters}
+      />
     </SafeAreaView>
   );
 }
@@ -279,7 +355,7 @@ const styles = StyleSheet.create({
   },
   tabPillContainer: {
     flexDirection: "row",
-    backgroundColor: Colors.cardBg,
+    backgroundColor: "#efede4",
     borderRadius: 999,
     padding: 3,
     height: 35,
@@ -302,57 +378,90 @@ const styles = StyleSheet.create({
   tabPillTextSelected: {
     color: Colors.textPrimary,
   },
-  filterIconWrapper: {
-    marginLeft: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  sectionsContainer: {
+  scrollView: { flex: 1 },
+  scrollContent: { gap: 24, paddingTop: 8 },
+
+  // Watch level card
+  watchCard: {
+    backgroundColor: "#b0def0",
+    borderRadius: 8,
+    marginHorizontal: 16,
+    padding: 16,
     gap: 24,
-    paddingTop: 8,
   },
-  section: {
-    gap: 12,
+  watchCardContent: { gap: 8, width: "70%" },
+  watchCardTitle: {
+    ...type.title3,
+    color: Colors.textPrimary,
   },
+  watchCardBody: {
+    ...type.caption1,
+    color: Colors.textPrimary,
+    lineHeight: 17,
+  },
+  watchCardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: Colors.white,
+    borderRadius: 33,
+    height: 48,
+    paddingHorizontal: 16,
+    alignSelf: "flex-start",
+  },
+  watchCardButtonText: {
+    ...type.body,
+    color: Colors.textPrimary,
+  },
+
+  // Sections
+  sectionsContainer: { gap: 24 },
+  section: { gap: 12, paddingHorizontal: 16 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  sectionHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 8,
-  },
-  sectionDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
   },
   sectionLabel: {
-    ...type.caption1Medium,
+    ...type.caption1,
     color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
   cardBg: {
-    backgroundColor: Colors.cardBg,
+    backgroundColor: "#efede4",
     borderRadius: 8,
+    overflow: "hidden",
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.07)",
     marginHorizontal: 16,
-    padding: 8,
   },
-  warningList: {
-    paddingHorizontal: 16,
+  rowDivider: {
+    height: 1,
+    backgroundColor: "rgba(0,0,0,0.07)",
+    marginHorizontal: 16,
   },
+
+  // Alert rows
   alertRow: {
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  alertRowDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.08)",
+  horseAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  horseAvatarPlaceholder: {
+    backgroundColor: Colors.cardBg,
+  },
+  alertContent: {
+    flex: 1,
+    gap: 8,
   },
   alertRowHeader: {
     flexDirection: "row",
@@ -383,35 +492,25 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: Colors.textSecondary,
   },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: "rgba(0,0,0,0.07)",
-    marginHorizontal: 16,
-  },
-  resolvedRow: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  resolutionNote: {
-    backgroundColor: Colors.cardBg,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  resolutionNoteText: {
-    ...type.callout,
-    fontStyle: "italic",
-    color: Colors.textPrimary,
+
+  // Empty states
+  filterIconWrap: { position: "relative" },
+  filterDot: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#bda632",
   },
   emptyState: {
-    flex: 1,
     alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 60,
   },
   emptyText: {
     ...type.callout,
     color: Colors.textQuaternary,
+    paddingHorizontal: 16,
   },
 });

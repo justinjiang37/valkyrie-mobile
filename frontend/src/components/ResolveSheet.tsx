@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { BottomSheet } from './BottomSheet';
 import { StatusTag } from './StatusTag';
 import { Colors } from '../constants/theme';
@@ -12,6 +13,29 @@ interface ResolveSheetProps {
   onClose: () => void;
   alert: Alert | null;
   onResolve: (alertId: string, note: string) => void;
+}
+
+function CheckCircleIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Circle cx="10" cy="10" r="9" stroke="#fbf9f0" strokeWidth="1.5" />
+      <Path
+        d="M6.5 10l2.5 2.5 4.5-5"
+        stroke="#fbf9f0"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function formatTimeAgo(timestamp: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(timestamp).getTime()) / 60000);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
 }
 
 export function ResolveSheet({ open, onClose, alert, onResolve }: ResolveSheetProps) {
@@ -34,73 +58,52 @@ export function ResolveSheet({ open, onClose, alert, onResolve }: ResolveSheetPr
     onClose();
   };
 
-  // Format relative time
-  const formatTimeAgo = (timestamp: string): string => {
-    const now = Date.now();
-    const then = new Date(timestamp).getTime();
-    const diffMin = Math.floor((now - then) / 60000);
-    if (diffMin < 60) return `${diffMin} min ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
-    return `${Math.floor(diffHr / 24)}d ago`;
-  };
-
   return (
-    <BottomSheet open={open} onClose={onClose}>
+    <BottomSheet open={open} onClose={handleCancel}>
       <View style={styles.content}>
         {/* Alert preview */}
-        <View style={styles.alertPreview}>
-          <View style={styles.alertHeader}>
-            <Text style={styles.alertLabel}>ALERT</Text>
-            <View style={styles.dots}>
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-            </View>
-          </View>
-          <View style={styles.alertCard}>
-            <View style={styles.alertCardHeader}>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>ALERT</Text>
+          <View style={styles.alertPreview}>
+            <View style={styles.alertRow}>
               <Text style={styles.horseName}>{horseName}</Text>
               <View style={styles.alertRight}>
                 <Text style={styles.timeAgo}>{formatTimeAgo(alert.timestamp)}</Text>
                 <StatusTag status={alert.severity === 'critical' ? 'critical' : 'warning'} />
               </View>
             </View>
-            <Text style={styles.message} numberOfLines={2}>
+            <Text style={styles.message} numberOfLines={3}>
               {alert.message}
             </Text>
           </View>
         </View>
 
-        {/* Notes input */}
-        <View style={styles.notesSection}>
-          <Text style={styles.notesLabel}>NOTES</Text>
-          <TextInput
-            style={styles.notesInput}
-            value={note}
-            onChangeText={setNote}
-            placeholder="Add a note about resolution..."
-            placeholderTextColor={Colors.textQuaternary}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
+        {/* Notes */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>NOTES</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              value={note}
+              onChangeText={setNote}
+              multiline
+              textAlignVertical="top"
+            />
+            {note.length === 0 && (
+              <Text style={styles.placeholder} pointerEvents="none">
+                e.g. Checked in with the vet
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* Action buttons */}
+        {/* Buttons */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.resolveBtn}
-            activeOpacity={0.8}
-            onPress={handleResolve}
-          >
+          <TouchableOpacity style={styles.resolveBtn} activeOpacity={0.85} onPress={handleResolve}>
+            <CheckCircleIcon />
             <Text style={styles.resolveBtnText}>Resolve</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            activeOpacity={0.8}
-            onPress={handleCancel}
-          >
+          <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={handleCancel}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -112,44 +115,23 @@ export function ResolveSheet({ open, onClose, alert, onResolve }: ResolveSheetPr
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    gap: 24,
+    paddingBottom: 16,
+    gap: 32,
   },
-  alertPreview: {
-    backgroundColor: Colors.cardBg,
-    borderRadius: 8,
-    padding: 16,
+  section: {
     gap: 12,
   },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  alertLabel: {
+  sectionLabel: {
     ...type.caption1Medium,
     color: Colors.textTertiary,
+    letterSpacing: 0.5,
   },
-  dots: {
+  alertPreview: {
+    gap: 4,
+  },
+  alertRow: {
     flexDirection: 'row',
-    gap: 6,
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.textQuaternary,
-  },
-  alertCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 7,
-    paddingHorizontal: 19,
-    paddingVertical: 14,
-    gap: 8,
-  },
-  alertCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
@@ -160,7 +142,7 @@ const styles = StyleSheet.create({
   alertRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 8,
   },
   timeAgo: {
     ...type.caption1,
@@ -168,45 +150,57 @@ const styles = StyleSheet.create({
   },
   message: {
     ...type.callout,
-    color: Colors.textSecondary,
-  },
-  notesSection: {
-    gap: 8,
-  },
-  notesLabel: {
-    ...type.caption1Medium,
     color: Colors.textTertiary,
   },
-  notesInput: {
-    backgroundColor: Colors.cardBg,
+  inputWrap: {
+    backgroundColor: '#efede4',
     borderRadius: 8,
-    padding: 16,
-    minHeight: 80,
-    ...type.body,
+    height: 106,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingTop: 13,
+    paddingBottom: 13,
+    ...type.callout,
     color: Colors.textPrimary,
+    height: 106,
+  },
+  placeholder: {
+    position: 'absolute',
+    top: 13,
+    left: 10,
+    ...type.callout,
+    fontStyle: 'italic',
+    color: 'rgba(43,41,35,0.5)',
+    pointerEvents: 'none',
   },
   actions: {
-    gap: 8,
-    paddingBottom: 16,
+    gap: 12,
+    paddingBottom: 4,
   },
   resolveBtn: {
     height: 48,
+    backgroundColor: '#bda632',
+    borderRadius: 47,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.accent,
-    borderRadius: 999,
+    gap: 10,
   },
   resolveBtnText: {
     ...type.callout,
-    color: '#FFFDF0',
+    fontWeight: '500',
+    color: '#fbf9f0',
   },
   cancelBtn: {
-    height: 32,
+    height: 29,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     ...type.callout,
-    color: Colors.textQuaternary,
+    fontWeight: '500',
+    color: '#939189',
   },
 });
