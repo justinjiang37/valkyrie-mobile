@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   ScrollView, Text, View, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, TextInput, LayoutChangeEvent, Switch, Image,
+  Alert, ActivityIndicator, TextInput, Switch, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Circle } from "react-native-svg";
@@ -71,11 +71,9 @@ type TabId = "account" | "barn";
 
 // Behaviors shown under the slider per level
 const LEVEL_BEHAVIORS: Record<number, string[]> = {
-  5: ["Rolling"],
+  3: ["Rolling"],
   4: ["Rolling", "Biting"],
-  3: ["Rolling", "Biting", "Repeated lying/standing", "Lying down for a long time"],
-  2: ["Rolling", "Biting", "Repeated lying/standing"],
-  1: ["Rolling", "Biting", "Repeated lying/standing"],
+  5: ["Rolling", "Biting", "Prolonged lying"],
 };
 
 // ── Watch level slider ────────────────────────────────────────────────────────
@@ -87,35 +85,9 @@ function WatchLevelSlider({
   level: number;
   onChange: (l: number) => void;
 }) {
-  const [containerWidth, setContainerWidth] = useState(0);
-
-  const onLayout = (e: LayoutChangeEvent) => {
-    setContainerWidth(e.nativeEvent.layout.width);
-  };
-
-  // Dot centers are evenly distributed across the inner track
-  const dotIndex = level - 3; // 0–2
-  const dotCenter =
-    containerWidth > 0
-      ? (dotIndex / 2) * containerWidth
-      : 0;
-
-  const highlightW = 80;
-  const highlightLeft = dotCenter - highlightW / 2;
-
   return (
     <View>
-      <View style={styles.sliderContainer} onLayout={onLayout}>
-        {/* Background highlight pill behind selected dot */}
-        {containerWidth > 0 && (
-          <View
-            style={[
-              styles.sliderHighlight,
-              { left: Math.max(0, Math.min(highlightLeft, containerWidth - highlightW)) },
-            ]}
-          />
-        )}
-        {/* Dots */}
+      <View style={styles.sliderContainer}>
         <View style={styles.sliderTrack}>
           {[3, 4, 5].map((l) => (
             <TouchableOpacity
@@ -124,23 +96,16 @@ function WatchLevelSlider({
               activeOpacity={0.7}
               style={styles.dotWrap}
             >
-              <View
-                style={[
-                  styles.dot,
-                  l === level && styles.dotSelected,
-                ]}
-              />
+              <View style={[styles.dot, l === level && styles.dotSelected]} />
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Labels */}
       <View style={styles.sliderLabels}>
         <Text style={styles.sliderLabel}>LOW SENSITIVITY</Text>
         <Text style={styles.sliderLabel}>HIGH SENSITIVITY</Text>
       </View>
-
     </View>
   );
 }
@@ -621,15 +586,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     justifyContent: "center",
     overflow: "hidden",
-  },
-  sliderHighlight: {
-    position: "absolute",
-    top: "50%",
-    marginTop: -16,
-    width: 80,
-    height: 32,
-    backgroundColor: WARM_GRAY,
-    borderRadius: 88,
   },
   sliderTrack: {
     flexDirection: "row",
