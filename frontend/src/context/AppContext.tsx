@@ -322,7 +322,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const tracked = horses
-      .filter((h) => h.stallId && h.name.toLowerCase() !== "maple")
+      .filter((h) => h.stallId && h.name.toLowerCase() !== "maple" && h.name.toLowerCase() !== "bella")
       .map((h) => ({ stallId: h.stallId, backendId: h.name.toLowerCase() }));
 
     const pollAll = async () => {
@@ -344,8 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const poll = setInterval(pollAll, 5000);
     pollAll();
 
-    // Hardcoded Maple alert: fires a 4/5 alert once a minute. applyResult
-    // updates the existing open alert's timestamp instead of creating a new one.
+    // Hardcoded Maple alert: fires a 4/5 alert once a minute.
     const maple = horses.find(
       (h) => h.name.toLowerCase() === "maple" && h.stallId
     );
@@ -356,10 +355,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : null;
     if (maple && !cancelled) applyResult(maple.stallId, 4);
 
+    // Hardcoded Bella alert: fires a 3/5 alert once a minute.
+    const bella = horses.find(
+      (h) => h.name.toLowerCase() === "bella" && h.stallId
+    );
+    const bellaInterval = bella
+      ? setInterval(() => {
+          if (!cancelled) applyResult(bella.stallId, 3);
+        }, 60000)
+      : null;
+    if (bella && !cancelled) applyResult(bella.stallId, 3);
+
     return () => {
       cancelled = true;
       clearInterval(poll);
       if (mapleInterval) clearInterval(mapleInterval);
+      if (bellaInterval) clearInterval(bellaInterval);
     };
   }, [horses]);
 
