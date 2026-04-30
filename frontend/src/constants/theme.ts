@@ -1,6 +1,6 @@
 export const Colors = {
   // Base colors
-  background: '#FFFFFF',
+  background: '#fbf9f0',
   surface: '#FFFFFF',
   cardBg: '#F5F4F3',
 

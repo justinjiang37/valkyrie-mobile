@@ -6,6 +6,11 @@ import { useAuth } from "./AuthContext";
 
 const API_BASE = "http://localhost:8000";
 
+const LOCAL_HORSE_VIDEOS: Record<string, string> = {
+  shadow: "horse-rolling-demo.mov",
+  maple:  "horse-biting-demo.mov",
+};
+
 export interface Toast {
   id: string;
   horseName: string;
@@ -77,7 +82,9 @@ function horseFromRow(r: HorseRow): Horse {
     age: r.age ?? 0,
     stallId: r.stall_id ?? "",
     imageUrl: r.image_url ?? "",
-    videoUrl: r.video_url,
+    videoUrl: LOCAL_HORSE_VIDEOS[r.name?.toLowerCase()]
+      ? `${API_BASE}/videos/${LOCAL_HORSE_VIDEOS[r.name.toLowerCase()]}`
+      : r.video_url,
   };
 }
 
@@ -299,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const tracked = horses
-      .filter((h) => h.stallId)
+      .filter((h) => h.stallId && h.name.toLowerCase() !== "maple")
       .map((h) => ({ stallId: h.stallId, backendId: h.name.toLowerCase() }));
 
     const pollAll = async () => {
@@ -321,9 +328,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const poll = setInterval(pollAll, 5000);
     pollAll();
 
+    // Hardcoded Maple alert: fires a 4/5 alert once a minute. applyResult
+    // updates the existing open alert's timestamp instead of creating a new one.
+    const maple = horses.find(
+      (h) => h.name.toLowerCase() === "maple" && h.stallId
+    );
+    const mapleInterval = maple
+      ? setInterval(() => {
+          if (!cancelled) applyResult(maple.stallId, 4);
+        }, 60000)
+      : null;
+    if (maple && !cancelled) applyResult(maple.stallId, 4);
+
     return () => {
       cancelled = true;
       clearInterval(poll);
+      if (mapleInterval) clearInterval(mapleInterval);
     };
   }, [horses]);
 

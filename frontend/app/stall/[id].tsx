@@ -136,10 +136,6 @@ export default function StallDetailScreen() {
             <Text style={styles.alertTimestamp}>{formatRelativeTime(stallAlert.timestamp)}</Text>
           </Text>
           <View style={styles.alertActions}>
-            <TouchableOpacity style={styles.viewFootageBtn} activeOpacity={0.8}>
-              <Feather name="eye" size={20} color="#fbf9f0" />
-              <Text style={styles.viewFootageText}>View footage</Text>
-            </TouchableOpacity>
             <View style={styles.alertSecondaryRow}>
               <TouchableOpacity
                 style={styles.outlineBtn}
