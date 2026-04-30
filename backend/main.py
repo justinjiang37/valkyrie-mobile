@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 import job_store
 from models import JobResponse, JobStatus
-from pipeline import cv_pipeline_enabled, run_pipeline
+from pipeline import cv_pipeline_enabled, run_pipeline, run_pipeline_stream
 
 REQUEUE_COOLDOWN_SECONDS = 2.0
 
@@ -32,10 +32,14 @@ VIDEOS_DIR = Path(__file__).parent / "videos"
 # Horse registry: horse_id -> video file path.
 # Add a new entry + video file to enable analysis for another horse.
 HORSE_VIDEOS: dict[str, Path] = {
-    "bella":  VIDEOS_DIR / "horse-rolling17.mov",
-    "rocky":  VIDEOS_DIR / "horse-rolling17.mov",
+    "bella":  VIDEOS_DIR / "horse-lying-demo.mov",
     "shadow": VIDEOS_DIR / "horse-rolling-demo.mov",
     "maple":  VIDEOS_DIR / "horse-biting-demo.mov",
+}
+
+# Horses with live MJPEG streams — analyzed via screen capture instead of video files.
+LIVE_STREAM_URLS: dict[str, str] = {
+    "rocky": "http://10.23.98.106:8001/stream",
 }
 
 
@@ -65,7 +69,8 @@ async def _autostart_all_horses() -> None:
     if not cv_pipeline_enabled():
         logger.info("CV pipeline killswitch off; not autostarting horses")
         return
-    for horse_id in HORSE_VIDEOS:
+    all_horses = list(HORSE_VIDEOS) + list(LIVE_STREAM_URLS)
+    for horse_id in all_horses:
         with _running_lock:
             already = horse_id in _running_horses
             if not already:
@@ -101,23 +106,43 @@ _running_lock = threading.Lock()
 
 def _start_job(horse_id: str) -> str:
     """Create a job record + spawn a worker thread for one pipeline cycle."""
-    video_path = _video_path_for(horse_id)
     job_id = str(uuid.uuid4())
-    video_bytes = video_path.read_bytes()
     job_store.create_job(job_id, horse=horse_id)
-    logger.info("Created %s job %s (%d bytes)", horse_id, job_id, len(video_bytes))
-    threading.Thread(
-        target=_run_and_requeue,
-        args=(horse_id, job_id, video_bytes),
-        daemon=True,
-    ).start()
+
+    if horse_id in LIVE_STREAM_URLS:
+        stream_url = LIVE_STREAM_URLS[horse_id]
+        logger.info("Created %s stream job %s", horse_id, job_id)
+        threading.Thread(
+            target=_run_and_requeue,
+            args=(horse_id, job_id, None),
+            kwargs={"stream_url": stream_url},
+            daemon=True,
+        ).start()
+    else:
+        video_path = _video_path_for(horse_id)
+        video_bytes = video_path.read_bytes()
+        logger.info("Created %s job %s (%d bytes)", horse_id, job_id, len(video_bytes))
+        threading.Thread(
+            target=_run_and_requeue,
+            args=(horse_id, job_id, video_bytes),
+            daemon=True,
+        ).start()
+
     return job_id
 
 
-def _run_and_requeue(horse_id: str, job_id: str, video_bytes: bytes) -> None:
+def _run_and_requeue(
+    horse_id: str,
+    job_id: str,
+    video_bytes: bytes | None,
+    stream_url: str | None = None,
+) -> None:
     """Run one pipeline cycle; if LOOP_MODE, immediately start the next."""
     try:
-        run_pipeline(job_id, video_bytes)
+        if stream_url:
+            run_pipeline_stream(job_id, stream_url)
+        else:
+            run_pipeline(job_id, video_bytes)
     except Exception:
         logger.exception("Pipeline crashed for %s job %s", horse_id, job_id)
 

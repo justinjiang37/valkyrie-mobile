@@ -40,10 +40,10 @@ app.add_middleware(
 # 5. Update values below
 
 CAPTURE_REGION = {
-    "left": 39,
-    "top": 545,
-    "width": 660,
-    "height": 345,
+    "left": 609,
+    "top": 320,
+    "width": 884,
+    "height": 496,
 }
 
 TARGET_FPS = 15  # Frames per second to stream

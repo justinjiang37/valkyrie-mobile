@@ -21,7 +21,7 @@ const LOCAL_HORSE_IMAGES: Record<string, string> = {
 
 // Live MJPEG streams from screen capture
 const LIVE_STREAMS: Record<string, string> = {
-  rocky: "http://10.23.102.69:8001/stream",
+  rocky: "http://10.23.98.106:8001/stream",
 };
 
 export interface Toast {
@@ -376,15 +376,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const bellaInterval = bella
       ? setInterval(() => {
           if (!cancelled) applyResult(bella.stallId, 3);
-        }, 60000)
+        }, 210000)
       : null;
     if (bella && !cancelled) applyResult(bella.stallId, 3);
+
+    // Hardcoded Shadow alert: fires a 5/5 rolling alert every 43 seconds.
+    const shadow = horses.find(
+      (h) => h.name.toLowerCase() === "shadow" && h.stallId
+    );
+    const shadowInterval = shadow
+      ? setInterval(() => {
+          if (!cancelled) applyResult(shadow.stallId, 5);
+        }, 43000)
+      : null;
+    if (shadow && !cancelled) applyResult(shadow.stallId, 5);
 
     return () => {
       cancelled = true;
       clearInterval(poll);
       if (mapleInterval) clearInterval(mapleInterval);
       if (bellaInterval) clearInterval(bellaInterval);
+      if (shadowInterval) clearInterval(shadowInterval);
     };
   }, [horses]);
 
