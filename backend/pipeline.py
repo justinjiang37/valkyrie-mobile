@@ -12,6 +12,7 @@ Flow:
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
@@ -67,6 +68,50 @@ def _extract_frames(video_path: str, frames_dir: str) -> list[Path]:
     frames = sorted(Path(frames_dir).glob("*.png"))
     logger.info("Extracted %d frames from %s", len(frames), video_path)
     return frames
+
+
+def _capture_mjpeg_frames(stream_url: str, frames_dir: str, num_frames: int) -> list[Path]:
+    """Pull frames from an MJPEG stream at FRAME_FPS rate, save as PNGs."""
+    import requests
+    from PIL import Image
+
+    frame_interval = 1.0 / FRAME_FPS
+    frames: list[Path] = []
+    last_capture = 0.0
+    frame_idx = 0
+
+    with requests.get(stream_url, stream=True, timeout=15) as resp:
+        resp.raise_for_status()
+        buf = b""
+        for chunk in resp.iter_content(chunk_size=4096):
+            buf += chunk
+            while True:
+                start = buf.find(b"\xff\xd8")
+                end = buf.find(b"\xff\xd9", start + 2) if start != -1 else -1
+                if start == -1 or end == -1:
+                    break
+                jpeg_bytes = buf[start : end + 2]
+                buf = buf[end + 2 :]
+
+                now = time.time()
+                if now - last_capture < frame_interval:
+                    continue
+                last_capture = now
+
+                img = Image.open(io.BytesIO(jpeg_bytes)).convert("RGB")
+                path = Path(frames_dir) / f"{frame_idx:04d}.png"
+                img.save(str(path))
+                frames.append(path)
+                frame_idx += 1
+
+                if frame_idx >= num_frames:
+                    break
+
+            if len(frames) >= num_frames:
+                break
+
+    logger.info("Captured %d frames from %s", len(frames), stream_url)
+    return sorted(frames)
 
 
 def _read_frame_bytes(frame_paths: list[Path]) -> list[bytes]:
@@ -435,4 +480,91 @@ def run_pipeline(job_id: str, video_bytes: bytes) -> None:
 
     except Exception as exc:
         logger.exception("Pipeline error for job %s", job_id)
+        job_store.set_error(job_id, str(exc))
+
+
+def run_pipeline_stream(job_id: str, stream_url: str) -> None:
+    """
+    Like run_pipeline but captures frames from a live MJPEG stream URL
+    instead of a video file. Captures SCORING_INTERVAL frames per cycle.
+    """
+    if not cv_pipeline_enabled():
+        logger.info("CV pipeline disabled by killswitch; skipping job %s", job_id)
+        job_store.set_done(job_id, {
+            "illness_risk_score": 1,
+            "detections": [],
+            "summary": "CV pipeline disabled.",
+            "raw_descriptions": [],
+        })
+        return
+
+    logger.info("Stream pipeline started for job %s (%s)", job_id, stream_url)
+    job_store.set_status(job_id, JobStatus.processing)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            frames_dir = os.path.join(tmp_dir, "frames")
+            os.makedirs(frames_dir)
+
+            frames = _capture_mjpeg_frames(stream_url, frames_dir, num_frames=SCORING_INTERVAL)
+
+            if not frames:
+                raise RuntimeError("No frames captured from stream.")
+
+            active_frames, active_set = _filter_static_frames(frames)
+            logger.info(
+                "Motion filter: %d/%d frames active for job %s",
+                len(active_frames), len(frames), job_id,
+            )
+
+            logger.info(
+                "Streaming %d active frames for job %s (micro-batch=%d, score every %d)",
+                len(active_frames), job_id, VLM_MICRO_BATCH, SCORING_INTERVAL,
+            )
+
+            shared_descs: list[str] = []
+            lock = threading.Lock()
+            done_event = threading.Event()
+            producer_error: list[BaseException] = []
+
+            producer = threading.Thread(
+                target=_vlm_producer,
+                args=(active_frames, shared_descs, lock, done_event, producer_error),
+                name=f"vlm-producer-{job_id[:8]}",
+            )
+            consumer = threading.Thread(
+                target=_scorer_consumer,
+                args=(job_id, shared_descs, lock, done_event),
+                name=f"scorer-{job_id[:8]}",
+            )
+
+            producer.start()
+            consumer.start()
+            producer.join()
+            consumer.join()
+
+            if producer_error:
+                raise producer_error[0]
+
+            active_iter = iter(shared_descs)
+            default_desc = "The horse is standing upright with its head up, showing no signs of distress."
+            full_descriptions: list[str] = []
+            last_desc = default_desc
+            for i in range(len(frames)):
+                if i in active_set:
+                    last_desc = next(active_iter)
+                full_descriptions.append(last_desc)
+
+            results = _score_descriptions(full_descriptions)
+            results["raw_descriptions"] = full_descriptions
+            job_store.set_done(job_id, results)
+            logger.info(
+                "Stream pipeline done for job %s — risk=%d/5, detections=%s",
+                job_id,
+                results["illness_risk_score"],
+                results["detections"],
+            )
+
+    except Exception as exc:
+        logger.exception("Stream pipeline error for job %s", job_id)
         job_store.set_error(job_id, str(exc))
