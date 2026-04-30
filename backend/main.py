@@ -12,6 +12,7 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 import job_store
 from models import JobResponse, JobStatus
@@ -33,8 +34,8 @@ VIDEOS_DIR = Path(__file__).parent / "videos"
 HORSE_VIDEOS: dict[str, Path] = {
     "bella":  VIDEOS_DIR / "horse-rolling17.mov",
     "rocky":  VIDEOS_DIR / "horse-rolling17.mov",
-    "shadow": VIDEOS_DIR / "horse-rolling17.mov",
-    "maple":  VIDEOS_DIR / "horse-rolling17.mov",
+    "shadow": VIDEOS_DIR / "horse-rolling-demo.mov",
+    "maple":  VIDEOS_DIR / "horse-biting-demo.mov",
 }
 
 
@@ -55,6 +56,7 @@ def _video_path_for(horse_id: str) -> Path:
 
 
 app = FastAPI(title="Valkyrie Local API", version="0.1.0")
+app.mount("/videos", StaticFiles(directory=VIDEOS_DIR), name="videos")
 
 
 @app.on_event("startup")
