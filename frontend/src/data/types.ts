@@ -6,6 +6,7 @@ export interface Horse {
   stallId: string;
   imageUrl: string;
   videoUrl?: string | null;
+  isLiveStream?: boolean; // true for MJPEG streams
 }
 
 export interface Stall {

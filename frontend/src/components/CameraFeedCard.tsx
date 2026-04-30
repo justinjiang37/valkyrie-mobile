@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { Feather } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 import { type } from '../constants/typography';
@@ -9,6 +10,7 @@ interface CameraFeedCardProps {
   videoUrl?: string | null;
   videoOffset?: number;
   isOffline?: boolean;
+  isLiveStream?: boolean; // Set to true for MJPEG streams
 }
 
 function CornerBracket({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) {
@@ -31,25 +33,47 @@ function CornerBracket({ position }: { position: 'tl' | 'tr' | 'bl' | 'br' }) {
   );
 }
 
-export function CameraFeedCard({ videoUrl, videoOffset = 0, isOffline = false }: CameraFeedCardProps) {
+export function CameraFeedCard({ videoUrl, videoOffset = 0, isOffline = false, isLiveStream = false }: CameraFeedCardProps) {
   const hasVideo = !isOffline && !!videoUrl;
-  return (
-    <View style={styles.container}>
-      {!hasVideo ? (
+
+  const renderVideoContent = () => {
+    if (!hasVideo) {
+      return (
         <View style={styles.offlineContent}>
           <Feather name="video-off" size={36} color="rgba(255,255,255,0.15)" />
         </View>
-      ) : (
-        <Video
+      );
+    }
+
+    // MJPEG streams use WebView (handles streaming natively)
+    if (isLiveStream) {
+      return (
+        <WebView
           source={{ uri: videoUrl! }}
           style={styles.video}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay
-          isLooping
-          isMuted
-          positionMillis={videoOffset * 1000}
+          scrollEnabled={false}
+          scalesPageToFit={true}
         />
-      )}
+      );
+    }
+
+    // Regular video files use expo-av Video component
+    return (
+      <Video
+        source={{ uri: videoUrl! }}
+        style={styles.video}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isLooping
+        isMuted
+        positionMillis={videoOffset * 1000}
+      />
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {renderVideoContent()}
 
       {/* LIVE • 30FPS badge — top right */}
       {hasVideo && (

@@ -96,6 +96,7 @@ export default function StallCard({ stall, horse, score, videoOffset = 0 }: Stal
         videoUrl={horse.videoUrl}
         videoOffset={videoOffset}
         isOffline={isOffline}
+        isLiveStream={horse.isLiveStream}
       />
 
       {/* Below-video info */}

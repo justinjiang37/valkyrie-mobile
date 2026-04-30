@@ -4,6 +4,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
+import { WebView } from "react-native-webview";
 import { LineChart } from "react-native-chart-kit";
 import { useApp } from "../../src/context/AppContext";
 import { annotations } from "../../src/data/mock";
@@ -182,6 +183,13 @@ export default function StallDetailScreen() {
               <View style={styles.offlinePlaceholder}>
                 <Feather name="video-off" size={40} color="rgba(255,255,255,0.07)" />
               </View>
+            ) : horse.isLiveStream ? (
+              <WebView
+                source={{ uri: horse.videoUrl }}
+                style={styles.video}
+                scrollEnabled={false}
+                scalesPageToFit={true}
+              />
             ) : (
               <Video
                 source={{ uri: horse.videoUrl }}

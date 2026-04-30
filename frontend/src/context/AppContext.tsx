@@ -11,6 +11,11 @@ const LOCAL_HORSE_VIDEOS: Record<string, string> = {
   maple:  "horse-biting-demo.mov",
 };
 
+// Live MJPEG streams from screen capture
+const LIVE_STREAMS: Record<string, string> = {
+  rocky: "http://10.23.102.69:8001/stream",
+};
+
 export interface Toast {
   id: string;
   horseName: string;
@@ -75,6 +80,18 @@ function stallFromRow(r: StallRow, horseId: string | null): Stall {
 }
 
 function horseFromRow(r: HorseRow): Horse {
+  const nameLower = r.name?.toLowerCase() ?? "";
+  const isLiveStream = !!LIVE_STREAMS[nameLower];
+
+  let videoUrl: string | null = null;
+  if (isLiveStream) {
+    videoUrl = LIVE_STREAMS[nameLower];
+  } else if (LOCAL_HORSE_VIDEOS[nameLower]) {
+    videoUrl = `${API_BASE}/videos/${LOCAL_HORSE_VIDEOS[nameLower]}`;
+  } else {
+    videoUrl = r.video_url;
+  }
+
   return {
     id: r.id,
     name: r.name,
@@ -82,9 +99,8 @@ function horseFromRow(r: HorseRow): Horse {
     age: r.age ?? 0,
     stallId: r.stall_id ?? "",
     imageUrl: r.image_url ?? "",
-    videoUrl: LOCAL_HORSE_VIDEOS[r.name?.toLowerCase()]
-      ? `${API_BASE}/videos/${LOCAL_HORSE_VIDEOS[r.name.toLowerCase()]}`
-      : r.video_url,
+    videoUrl,
+    isLiveStream,
   };
 }
 
