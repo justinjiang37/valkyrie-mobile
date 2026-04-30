@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   ScrollView, Text, View, TouchableOpacity, StyleSheet, Dimensions, Linking, Image,
 } from "react-native";
@@ -8,7 +8,6 @@ import { WebView } from "react-native-webview";
 import { LineChart } from "react-native-chart-kit";
 import { useApp } from "../../src/context/AppContext";
 import { annotations } from "../../src/data/mock";
-import { supabase } from "../../src/lib/supabase";
 import { StatusTag } from "../../src/components/StatusTag";
 import { Colors } from "../../src/constants/theme";
 import { type } from "../../src/constants/typography";
@@ -21,6 +20,28 @@ const ALERT_PINK = "#f7e2db";
 const ALERT_ORANGE = "#e24d17";
 const ALERT_ORANGE_BORDER = "rgba(226,77,23,0.5)";
 const CALL_GOLD = "#bda632";
+const CHART_BLUE = "#5b8def";
+
+// Hardcoded timeline series matching the Figma demo: starts low (~2) at 48h,
+// ramps up sharply through 36h, plateaus around 4.0–4.6 with small jitter to Now.
+const TIMELINE_VALUES = [
+  1.9, 2.0, 1.8, 1.9, 2.0, 2.1, 2.0, 2.1,
+  2.2, 2.4, 2.7, 3.1, 3.5, 3.9, 4.0, 4.1,
+  4.2, 4.1, 4.2, 4.3, 4.2, 4.1, 4.2, 4.3,
+  4.4, 4.3, 4.4, 4.5, 4.4, 4.3, 4.4, 4.5,
+  4.4, 4.5, 4.6, 4.5, 4.4, 4.5, 4.6, 4.5,
+  4.4, 4.3, 4.4, 4.3, 4.4, 4.3, 4.2, 4.3,
+];
+// Rocky's baseline: a healthy young distinguished man, just chilling.
+const TIMELINE_VALUES_FLAT = [
+  0, 0, 0.05, 0.05, 0, 0, 0, 0,
+  0, 0.05, 0.05, 0, 0, 0, 0.05, 0,
+  0, 0, 0, 0.05, 0.05, 0, 0, 0,
+  0.05, 0, 0, 0, 0.05, 0.05, 0, 0,
+  0, 0, 0.05, 0, 0, 0, 0.05, 0.05,
+  0, 0, 0, 0.05, 0, 0, 0, 0.05,
+];
+const TIMELINE_LABELS = ["48h", "36h", "24h", "12h", "6h", "Now"];
 
 function formatRelativeTime(timestamp: string): string {
   const now = Date.now();
@@ -58,7 +79,6 @@ export default function StallDetailScreen() {
   const horse = horses.find((h) => h.stallId === id);
   const score = scores[id!];
   const stallAnnotations = annotations[id!] || [];
-  const [history, setHistory] = useState<{ timestamp: string; overall: number }[]>([]);
   const [resolveSheetOpen, setResolveSheetOpen] = useState(false);
   const isOffline = stall?.cameraStatus === "offline";
 
@@ -68,21 +88,6 @@ export default function StallDetailScreen() {
     },
     [resolveAlert]
   );
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("health_scores")
-        .select("timestamp, overall")
-        .eq("stall_id", id)
-        .order("timestamp", { ascending: true })
-        .limit(48);
-      if (!cancelled && data) setHistory(data as { timestamp: string; overall: number }[]);
-    })();
-    return () => { cancelled = true; };
-  }, [id, score?.timestamp]);
 
   const stallIndex = stalls.findIndex((s) => s.id === id);
   const videoOffset = stallIndex * 3.7 + stallIndex * 1.3;
@@ -99,22 +104,10 @@ export default function StallDetailScreen() {
     );
   }
 
-  const chartValues = useMemo(() => {
-    const now = Date.now();
-    return Array.from({ length: 48 }, (_, i) => {
-      const bucketStart = now - (47 - i + 1) * 3600000;
-      const bucketEnd = now - (47 - i) * 3600000;
-      const row = history.find((r) => {
-        const t = new Date(r.timestamp).getTime();
-        return t >= bucketStart && t < bucketEnd;
-      });
-      return row ? Math.round((row.overall - 10) / 20 + 1) : 1;
-    });
-  }, [history]);
-
-  const chartLabels = ["48h", "36h", "24h", "12h", "6h", "Now"];
   const isCritical = stallAlert?.severity === "critical";
   const vetPhone = settings?.vetPhone ?? "+16507136140";
+  const timelineValues =
+    horse?.name.toLowerCase() === "rocky" ? TIMELINE_VALUES_FLAT : TIMELINE_VALUES;
 
   return (
     <View style={styles.container}>
@@ -236,9 +229,6 @@ export default function StallDetailScreen() {
             <Feather name="phone-call" size={17} color="#fbf9f0" />
             <Text style={styles.callVetText}>Call Dr. Jun</Text>
           </TouchableOpacity>
-          {isCritical && (
-            <Text style={styles.recommendedText}>RECOMMENDED: Critical risk</Text>
-          )}
         </View>
       </View>
 
@@ -248,30 +238,47 @@ export default function StallDetailScreen() {
           <Text style={styles.sectionLabel}>TIMELINE</Text>
           <Text style={styles.sectionSubLabel}>Status over last 48 data points</Text>
         </View>
-        <LineChart
-          data={{
-            labels: chartLabels,
-            datasets: [{ data: chartValues, color: () => Colors.textPrimary, strokeWidth: 2 }],
-          }}
-          width={screenWidth - 32}
-          height={170}
-          yAxisSuffix="/5"
-          yAxisInterval={1}
-          fromZero={false}
-          chartConfig={{
-            backgroundColor: Colors.background,
-            backgroundGradientFrom: Colors.background,
-            backgroundGradientTo: Colors.background,
-            decimalPlaces: 0,
-            color: () => Colors.border,
-            labelColor: () => Colors.textTertiary,
-            propsForDots: { r: "0" },
-            propsForBackgroundLines: { stroke: Colors.border, strokeDasharray: "4,4" },
-          }}
-          style={{ marginLeft: -8, borderRadius: 8 }}
-          bezier
-          withDots={false}
-        />
+        <View style={styles.chartWrap}>
+          <LineChart
+            data={{
+              labels: TIMELINE_LABELS,
+              datasets: [
+                { data: timelineValues, color: () => CHART_BLUE, strokeWidth: 2 },
+                // Invisible anchor to lock the y-axis range to 0–5.
+                { data: Array(48).fill(5), color: () => "rgba(0,0,0,0)", strokeWidth: 0, withDots: false } as any,
+              ],
+            }}
+            width={screenWidth - 32}
+            height={190}
+            yAxisSuffix="/5"
+            yAxisInterval={1}
+            fromZero
+            segments={5}
+            chartConfig={{
+              backgroundColor: Colors.background,
+              backgroundGradientFrom: Colors.background,
+              backgroundGradientTo: Colors.background,
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(91,141,239,${opacity})`,
+              labelColor: () => Colors.textTertiary,
+              fillShadowGradient: CHART_BLUE,
+              fillShadowGradientOpacity: 0.18,
+              propsForDots: { r: "2.5", stroke: CHART_BLUE, strokeWidth: "1", fill: CHART_BLUE },
+              propsForBackgroundLines: { stroke: Colors.border, strokeDasharray: "4,4" },
+            }}
+            style={{ marginLeft: -8, borderRadius: 8 }}
+            bezier
+            withShadow
+            withDots
+            withHorizontalLabels={false}
+          />
+          <View style={[styles.chartIcon, { top: 38 }]}>
+            <Feather name="alert-circle" size={18} color="#d40101" />
+          </View>
+          <View style={[styles.chartIcon, { top: 100 }]}>
+            <Feather name="alert-triangle" size={18} color="#e7a000" />
+          </View>
+        </View>
       </View>
 
       {/* Behavioral Annotations */}
@@ -490,6 +497,10 @@ const styles = StyleSheet.create({
   sectionHeaderGroup: { gap: 4 },
   sectionLabel: { ...type.caption1Medium, color: Colors.textTertiary },
   sectionSubLabel: { ...type.caption1, color: Colors.textTertiary },
+
+  // Chart
+  chartWrap: { position: "relative" },
+  chartIcon: { position: "absolute", left: 0, width: 22, alignItems: "center" },
 
   // Annotations
   annotationRow: {

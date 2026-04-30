@@ -9,6 +9,14 @@ const API_BASE = "http://localhost:8000";
 const LOCAL_HORSE_VIDEOS: Record<string, string> = {
   shadow: "horse-rolling-demo.mov",
   maple:  "horse-biting-demo.mov",
+  bella:  "horse-lying-demo.mov",
+};
+
+const LOCAL_HORSE_IMAGES: Record<string, string> = {
+  shadow: "shadow-avatar.png",
+  rocky:  "rocky-avatar.png",
+  maple:  "maple-avatar.png",
+  bella:  "bella-avatar.png",
 };
 
 // Live MJPEG streams from screen capture
@@ -98,7 +106,9 @@ function horseFromRow(r: HorseRow): Horse {
     breed: r.breed ?? "",
     age: r.age ?? 0,
     stallId: r.stall_id ?? "",
-    imageUrl: r.image_url ?? "",
+    imageUrl: LOCAL_HORSE_IMAGES[nameLower]
+      ? `${API_BASE}/videos/${LOCAL_HORSE_IMAGES[nameLower]}?v=${Date.now()}`
+      : r.image_url ?? "",
     videoUrl,
     isLiveStream,
   };
@@ -260,9 +270,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (horse && stall) {
           const severity = risk === 5 ? ("critical" as const) : ("warning" as const);
           const timestamp = new Date().toISOString();
-          const message = `${horse.name}'s illness risk is ${risk}/5. ${
-            severity === "critical" ? "Immediate attention required." : "Behavioral changes detected."
-          }`;
+          const isMaple = horse.name.toLowerCase() === "maple";
+          const mapleOverrideSeverity = isMaple ? ("critical" as const) : severity;
+          const message = isMaple
+            ? `${horse.name} is biting at its stomach. Immediate attention required.`
+            : mapleOverrideSeverity === "critical"
+            ? `${horse.name} is rolling. Immediate attention required.`
+            : `${horse.name} has been lying down for over an hour.`;
 
           const isNewEvent = risk !== lastRiskRef.current[stallId];
 
@@ -274,11 +288,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               (async () => {
                 await supabase
                   .from("alerts")
-                  .update({ timestamp, severity, message })
+                  .update({ timestamp, severity: mapleOverrideSeverity, message })
                   .eq("id", existing.id);
               })();
               return prev.map((a) =>
-                a.id === existing.id ? { ...a, timestamp, severity, message } : a
+                a.id === existing.id ? { ...a, timestamp, severity: mapleOverrideSeverity, message } : a
               );
             }
             (async () => {
@@ -288,7 +302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   stall_id: stallId,
                   horse_id: horse.id,
                   timestamp,
-                  severity,
+                  severity: mapleOverrideSeverity,
                   message,
                   status: "new",
                 })
@@ -308,7 +322,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               horseName: horse.name,
               stallName: stall.name,
               score: overall,
-              severity,
+              severity: mapleOverrideSeverity,
               stallId,
             };
             setToasts((t) => [...t, toast]);
@@ -322,7 +336,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const tracked = horses
-      .filter((h) => h.stallId && h.name.toLowerCase() !== "maple")
+      .filter((h) => h.stallId && h.name.toLowerCase() !== "maple" && h.name.toLowerCase() !== "bella")
       .map((h) => ({ stallId: h.stallId, backendId: h.name.toLowerCase() }));
 
     const pollAll = async () => {
@@ -344,8 +358,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const poll = setInterval(pollAll, 5000);
     pollAll();
 
-    // Hardcoded Maple alert: fires a 4/5 alert once a minute. applyResult
-    // updates the existing open alert's timestamp instead of creating a new one.
+    // Hardcoded Maple alert: fires a 4/5 alert once a minute.
     const maple = horses.find(
       (h) => h.name.toLowerCase() === "maple" && h.stallId
     );
@@ -356,10 +369,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : null;
     if (maple && !cancelled) applyResult(maple.stallId, 4);
 
+    // Hardcoded Bella alert: fires a 3/5 alert once a minute.
+    const bella = horses.find(
+      (h) => h.name.toLowerCase() === "bella" && h.stallId
+    );
+    const bellaInterval = bella
+      ? setInterval(() => {
+          if (!cancelled) applyResult(bella.stallId, 3);
+        }, 60000)
+      : null;
+    if (bella && !cancelled) applyResult(bella.stallId, 3);
+
     return () => {
       cancelled = true;
       clearInterval(poll);
       if (mapleInterval) clearInterval(mapleInterval);
+      if (bellaInterval) clearInterval(bellaInterval);
     };
   }, [horses]);
 

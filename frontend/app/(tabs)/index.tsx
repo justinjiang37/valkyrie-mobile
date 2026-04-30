@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlatList, Text, StyleSheet, View, TextInput } from "react-native";
+import { FlatList, Text, StyleSheet, View, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Svg, { Path, Circle } from "react-native-svg";
@@ -7,6 +7,17 @@ import { useApp } from "../../src/context/AppContext";
 import StallCard from "../../src/components/StallCard";
 import AlertItem from "../../src/components/AlertItem";
 import { Colors } from "../../src/constants/theme";
+import { type } from "../../src/constants/typography";
+
+function MultiAlertIcon({ color }: { color: string }) {
+  return (
+    <Svg width={23} height={23} viewBox="0 0 23 23" fill="none">
+      <Circle cx={11.5} cy={11.5} r={10.5} stroke={color} strokeWidth={1.5} />
+      <Path d="M11.5 7v5" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      <Circle cx={11.5} cy={15.5} r={0.75} fill={color} stroke={color} strokeWidth={0.5} />
+    </Svg>
+  );
+}
 
 function SparkLogo() {
   return (
@@ -47,9 +58,14 @@ export default function FeedsScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const featuredAlert = alerts.find(
+  const featuredAlerts = alerts.filter(
     (a) => a.status === "new" && (a.severity === "critical" || a.severity === "warning")
   );
+  const featuredAlert = featuredAlerts[0];
+  const hasMultiple = featuredAlerts.length > 1;
+  const multiSeverity = featuredAlerts.some((a) => a.severity === "critical")
+    ? "critical"
+    : "warning";
 
   const data = stalls
     .map((stall, index) => {
@@ -67,6 +83,13 @@ export default function FeedsScreen() {
       }
     }
   };
+
+  const handleMultiplePress = () => {
+    router.push("/alerts");
+  };
+
+  const multiBg = multiSeverity === "critical" ? "#f7e2db" : "#fff3dc";
+  const multiIcon = multiSeverity === "critical" ? "#d40101" : "#e7a000";
 
   const barnLabel = settings?.farmName
     ? settings.farmName.toUpperCase()
@@ -103,9 +126,18 @@ export default function FeedsScreen() {
                 <Text style={styles.barnLabel}>{formatHeaderDate()}</Text>
               </View>
             </View>
-            {featuredAlert && (
+            {hasMultiple ? (
+              <TouchableOpacity
+                style={[styles.multiCard, { backgroundColor: multiBg }]}
+                activeOpacity={0.92}
+                onPress={handleMultiplePress}
+              >
+                <MultiAlertIcon color={multiIcon} />
+                <Text style={styles.multiText}>Multiple incidents detected.</Text>
+              </TouchableOpacity>
+            ) : featuredAlert ? (
               <AlertItem alert={featuredAlert} onPress={handleAlertPress} />
-            )}
+            ) : null}
           </View>
         }
         renderItem={({ item }) => (
@@ -175,5 +207,17 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16 },
   cardWrapper: {
     marginBottom: 24,
+  },
+  multiCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  multiText: {
+    ...type.calloutBold,
+    color: "#2b2923",
   },
 });
