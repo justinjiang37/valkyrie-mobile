@@ -21,7 +21,7 @@ const LOCAL_HORSE_IMAGES: Record<string, string> = {
 
 // Live MJPEG streams from screen capture
 const LIVE_STREAMS: Record<string, string> = {
-  rocky: "http://10.23.98.106:8001/stream",
+  rocky: "http://10.23.102.69:8001/stream",
 };
 
 export interface Toast {

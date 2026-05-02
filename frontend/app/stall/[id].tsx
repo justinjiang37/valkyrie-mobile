@@ -178,10 +178,24 @@ export default function StallDetailScreen() {
               </View>
             ) : horse.isLiveStream ? (
               <WebView
-                source={{ uri: horse.videoUrl }}
+                source={{ html: `
+                  <html>
+                    <head>
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                      <style>
+                        * { margin: 0; padding: 0; }
+                        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+                        img { width: 100%; height: 100%; object-fit: cover; }
+                      </style>
+                    </head>
+                    <body>
+                      <img src="${horse.videoUrl}" />
+                    </body>
+                  </html>
+                ` }}
                 style={styles.video}
                 scrollEnabled={false}
-                scalesPageToFit={true}
+                scalesPageToFit={false}
               />
             ) : (
               <Video

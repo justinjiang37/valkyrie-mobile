@@ -47,12 +47,27 @@ export function CameraFeedCard({ videoUrl, videoOffset = 0, isOffline = false, i
 
     // MJPEG streams use WebView (handles streaming natively)
     if (isLiveStream) {
+      const html = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+            <style>
+              * { margin: 0; padding: 0; }
+              html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+              img { width: 100%; height: 100%; object-fit: cover; }
+            </style>
+          </head>
+          <body>
+            <img src="${videoUrl}" />
+          </body>
+        </html>
+      `;
       return (
         <WebView
-          source={{ uri: videoUrl! }}
+          source={{ html }}
           style={styles.video}
           scrollEnabled={false}
-          scalesPageToFit={true}
+          scalesPageToFit={false}
         />
       );
     }
